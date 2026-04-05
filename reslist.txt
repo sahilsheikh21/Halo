@@ -1,0 +1,3 @@
+D:\Theshit\Halo\app\src\main\res\values\strings.xml
+D:\Theshit\Halo\app\src\main\res\values\themes.xml
+D:\Theshit\Halo\app\src\main\res\xml\network_security_config.xml
