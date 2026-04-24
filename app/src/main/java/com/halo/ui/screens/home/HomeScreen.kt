@@ -48,6 +48,16 @@ import com.halo.ui.theme.HaloCoral
 import com.halo.ui.theme.HaloGold
 import com.halo.ui.theme.HaloPurple
 import com.halo.ui.theme.TextSecondary
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,8 +70,12 @@ fun HomeScreen(
     val posts by viewModel.feedPosts.collectAsState()
     val storyGroups by viewModel.storyGroups.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
 
     var commentPostId by remember { mutableStateOf<String?>(null) }
+
+    // Trigger initial data load
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Box(
         modifier = Modifier
@@ -72,7 +86,26 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
-            // ─── Top bar ──────────────────────────────────────────
+            // ─── Offline banner ───────────────────────────────────
+            item {
+                AnimatedVisibility(
+                    visible = !isOnline,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Surface(color = Color(0xFFB00020)) {
+                        Text(
+                            text = "You're offline — showing cached content",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(6.dp)
+                        )
+                    }
+                }
+            }
             item {
                 Row(
                     modifier = Modifier

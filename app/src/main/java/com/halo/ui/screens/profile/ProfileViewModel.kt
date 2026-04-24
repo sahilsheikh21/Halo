@@ -6,8 +6,12 @@ import com.halo.data.repository.FeedRepository
 import com.halo.data.repository.UserRepository
 import com.halo.domain.model.Post
 import com.halo.domain.model.UserProfile
+import com.halo.ui.common.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -16,6 +20,9 @@ class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val feedRepository: FeedRepository
 ) : ViewModel() {
+
+    private val _followState = MutableStateFlow<UiState<Unit>?>(null)
+    val followState: StateFlow<UiState<Unit>?> = _followState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -33,11 +40,22 @@ class ProfileViewModel @Inject constructor(
 
     fun toggleFollow(userId: String, isCurrentlyFollowing: Boolean) {
         viewModelScope.launch {
-            if (isCurrentlyFollowing) {
-                userRepository.unfollowUser(userId)
-            } else {
-                userRepository.followUser(userId)
+            _followState.value = UiState.Loading
+            try {
+                if (isCurrentlyFollowing) {
+                    userRepository.unfollowUser(userId)
+                } else {
+                    userRepository.followUser(userId)
+                }
+                _followState.value = UiState.Success(Unit)
+            } catch (e: Exception) {
+                _followState.value = UiState.Error(e.message ?: "Follow action failed", e)
             }
         }
     }
+
+    fun clearFollowState() {
+        _followState.value = null
+    }
 }
+
