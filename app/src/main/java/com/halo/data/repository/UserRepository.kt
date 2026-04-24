@@ -6,6 +6,7 @@ import com.halo.data.matrix.MatrixClientManager
 import com.halo.domain.model.UserProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +15,27 @@ class UserRepository @Inject constructor(
     private val userDao: UserDao,
     private val matrixClientManager: MatrixClientManager
 ) {
+    suspend fun refreshUsers() {
+        // Temporarily seed MockData if DB is empty
+        val currentUsers = userDao.getFollowingUsers().first()
+        if (currentUsers.isEmpty()) {
+            val mockEntities = com.halo.data.mock.MockData.users.map { user ->
+                UserEntity(
+                    userId = user.userId,
+                    displayName = user.displayName,
+                    avatarMxc = user.avatarUrl, // HTTP URL for now
+                    bio = user.bio,
+                    feedRoomId = user.feedRoomId ?: "mock_feed_room",
+                    isFollowing = user.isFollowing,
+                    followerCount = user.followerCount,
+                    followingCount = user.followingCount,
+                    postCount = user.postCount,
+                    cachedAt = System.currentTimeMillis()
+                )
+            }
+            userDao.insertUsers(mockEntities)
+        }
+    }
     fun observeUser(userId: String): Flow<UserProfile?> {
         return userDao.observeUser(userId).map { entity ->
             entity?.toDomainModel()

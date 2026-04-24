@@ -67,8 +67,8 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userProfile by viewModel.observeUser(userId).collectAsState(initial = null)
-    val isFollowing by viewModel.isFollowing.collectAsState()
-    val userPosts = viewModel.getPostsForUser(userId)
+    val isFollowing = userProfile?.isFollowing == true
+    val userPosts by viewModel.getPostsForUser(userId).collectAsState(initial = emptyList())
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -221,7 +221,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { viewModel.toggleFollow() },
+                            onClick = { viewModel.toggleFollow(userId, isFollowing) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(34.dp),
