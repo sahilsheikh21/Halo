@@ -1,43 +1,60 @@
 package com.halo.ui.screens.explore
 
 import androidx.lifecycle.ViewModel
-import com.halo.data.mock.MockData
+import androidx.lifecycle.viewModelScope
+import com.halo.data.repository.FeedRepository
 import com.halo.data.repository.UserRepository
 import com.halo.domain.model.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val feedRepository: FeedRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // Mock explore grid — image URL + author ID pairs
-    private val _exploreItems = MutableStateFlow(MockData.exploreImages)
-    val exploreItems: StateFlow<List<Pair<String, String>>> = _exploreItems.asStateFlow()
+    val exploreItems: StateFlow<List<Pair<String, String>>> = feedRepository.getFeedPosts(50, 0)
+        .map { posts ->
+            posts.mapNotNull { post ->
+                val imageUrl = post.mediaUrls.firstOrNull()?.url
+                if (imageUrl != null) imageUrl to post.authorId else null
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
-    private val _allUsers = MutableStateFlow(MockData.users)
-
-    val searchResults: StateFlow<List<UserProfile>> = MutableStateFlow(emptyList())
+    val searchResults: StateFlow<List<UserProfile>> = _searchQuery
+        .flatMapLatest { query ->
+            if (query.isBlank()) {
+                flowOf(emptyList())
+            } else {
+                userRepository.searchUsers("%$query%")
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
-    }
-
-    fun getFilteredUsers(): List<UserProfile> {
-        val q = _searchQuery.value.trim().lowercase()
-        if (q.isBlank()) return emptyList()
-        return MockData.users.filter {
-            it.displayName.lowercase().contains(q) ||
-            it.username.lowercase().contains(q) ||
-            it.bio.lowercase().contains(q)
-        }
     }
 }
