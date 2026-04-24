@@ -142,4 +142,39 @@ class FeedRepository @Inject constructor(
             postDao.insertPosts(mockEntities)
         }
     }
+    suspend fun publishPost(
+        caption: String,
+        mediaMxc: String,
+        mimeType: String,
+        location: String?
+    ) {
+        // TODO: Send com.halo.post event via Matrix SDK
+
+        val entity = com.halo.data.local.entity.PostEntity(
+            eventId = "local_${System.currentTimeMillis()}",
+            feedRoomId = "local_feed",
+            authorId = "@me:localhost", // Placeholder until auth is wired
+            caption = caption,
+            mediaJson = kotlinx.serialization.json.Json.encodeToString(
+                listOf(
+                    com.halo.data.matrix.events.PostMedia(
+                        mxcUri = mediaMxc,
+                        mimeType = mimeType
+                    )
+                )
+            ),
+            locationJson = location?.takeIf { it.isNotBlank() }?.let {
+                kotlinx.serialization.json.Json.encodeToString(
+                    com.halo.data.matrix.events.PostLocation(name = it)
+                )
+            },
+            tagsJson = "[]",
+            likeCount = 0,
+            commentCount = 0,
+            isLikedByMe = false,
+            createdAt = System.currentTimeMillis(),
+            cachedAt = System.currentTimeMillis()
+        )
+        postDao.insertPosts(listOf(entity))
+    }
 }

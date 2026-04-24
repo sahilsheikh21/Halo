@@ -106,7 +106,7 @@ fun CreateScreen(
             // Post button in header
             Button(
                 onClick = { viewModel.createPost { onPostCreated() } },
-                enabled = !isPosting && caption.isNotBlank(),
+                enabled = !isPosting && selectedMediaUri != null,
                 shape = RoundedCornerShape(20.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = HaloPurple,
@@ -248,7 +248,8 @@ fun CreateScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
-                onClick = { viewModel.createStory() },
+                onClick = { viewModel.createStory { onPostCreated() } },
+                enabled = !isPosting && selectedMediaUri != null,
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp),

@@ -81,4 +81,20 @@ class StoryRepository @Inject constructor(
             storyDao.insertStories(mockEntities)
         }
     }
+    suspend fun publishStory(mediaMxc: String) {
+        // TODO: Send com.halo.story state event via Matrix SDK
+        
+        val entity = com.halo.data.local.entity.StoryEntity(
+            eventId = "local_story_${System.currentTimeMillis()}",
+            feedRoomId = "local_feed",
+            authorId = "@me:localhost", // Placeholder
+            mediaMxc = mediaMxc,
+            storyType = "image",
+            durationMs = 5000,
+            caption = null,
+            createdAt = System.currentTimeMillis(),
+            isSeen = true
+        )
+        storyDao.insertStories(listOf(entity))
+    }
 }

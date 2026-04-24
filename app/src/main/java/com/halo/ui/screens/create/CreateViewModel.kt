@@ -11,8 +11,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.halo.data.matrix.MediaManager
+import com.halo.data.repository.FeedRepository
+import com.halo.data.repository.StoryRepository
+
 @HiltViewModel
-class CreateViewModel @Inject constructor() : ViewModel() {
+class CreateViewModel @Inject constructor(
+    private val mediaManager: MediaManager,
+    private val feedRepository: FeedRepository,
+    private val storyRepository: StoryRepository
+) : ViewModel() {
 
     private val _caption = MutableStateFlow("")
     val caption: StateFlow<String> = _caption.asStateFlow()
@@ -44,10 +52,25 @@ class CreateViewModel @Inject constructor() : ViewModel() {
     }
 
     fun createPost(onComplete: () -> Unit = {}) {
+        val uri = _selectedMediaUri.value ?: return
+        
         viewModelScope.launch {
             _isPosting.value = true
-            // TODO: Upload media to Matrix, send com.halo.post event
-            delay(1000) // simulate upload
+            
+            // 1. Upload Media
+            val result = mediaManager.uploadMedia(uri, "image/jpeg")
+            val mxcUri = result.getOrNull()
+            
+            if (mxcUri != null) {
+                // 2. Publish Post
+                feedRepository.publishPost(
+                    caption = _caption.value.trim(),
+                    mediaMxc = mxcUri,
+                    mimeType = "image/jpeg",
+                    location = _location.value.trim()
+                )
+            }
+            
             _isPosting.value = false
             _caption.value = ""
             _selectedMediaUri.value = null
@@ -56,12 +79,24 @@ class CreateViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun createStory() {
+    fun createStory(onComplete: () -> Unit = {}) {
+        val uri = _selectedMediaUri.value ?: return
+        
         viewModelScope.launch {
             _isPosting.value = true
-            // TODO: Upload media, send com.halo.story state event (24h TTL enforced client-side)
-            delay(800)
+            
+            // 1. Upload Media
+            val result = mediaManager.uploadMedia(uri, "image/jpeg")
+            val mxcUri = result.getOrNull()
+            
+            if (mxcUri != null) {
+                // 2. Publish Story
+                storyRepository.publishStory(mediaMxc = mxcUri)
+            }
+            
             _isPosting.value = false
+            _selectedMediaUri.value = null
+            onComplete()
         }
     }
 }
