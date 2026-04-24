@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -15,30 +16,50 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.halo.data.matrix.SessionState
+import com.halo.data.matrix.SlidingSyncManager
+import com.halo.data.matrix.SyncEventProcessor
 import com.halo.ui.navigation.BottomNavBar
-import com.halo.ui.navigation.BottomNavTab
 import com.halo.ui.navigation.HaloNavGraph
 import com.halo.ui.navigation.Route
 import com.halo.ui.screens.auth.AuthViewModel
 import com.halo.ui.theme.DarkBackground
 import com.halo.ui.theme.HaloTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var slidingSyncManager: SlidingSyncManager
+    @Inject lateinit var syncEventProcessor: SyncEventProcessor
+
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Start event processing pipeline (waits until sync is actually running)
+        syncEventProcessor.startProcessing(activityScope)
+
         setContent {
             HaloTheme {
-                HaloApp()
+                HaloApp(slidingSyncManager = slidingSyncManager)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // SlidingSyncManager.stopSync() is called via sessionState observation in HaloApp
     }
 }
 
 @Composable
-fun HaloApp() {
+fun HaloApp(slidingSyncManager: SlidingSyncManager) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
     val sessionState by authViewModel.sessionState.collectAsState()
@@ -46,10 +67,8 @@ fun HaloApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Always start at splash
     val startDestination = Route.Splash.path
 
-    // Routes that show the bottom nav bar
     val mainTabs = setOf(
         Route.Home.path,
         Route.Explore.path,
@@ -59,9 +78,17 @@ fun HaloApp() {
     )
     val showBottomBar = currentRoute in mainTabs
 
-    // Routes where the system nav bar should be hidden (immersive)
     val immersiveRoutes = setOf(Route.StoryViewer.path)
     val isImmersive = currentRoute in immersiveRoutes
+
+    // Start/stop Matrix sync based on session state
+    LaunchedEffect(sessionState) {
+        when (sessionState) {
+            is SessionState.LoggedIn -> slidingSyncManager.startSync()
+            is SessionState.NotLoggedIn -> slidingSyncManager.stopSync()
+            else -> Unit
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -89,3 +116,4 @@ fun HaloApp() {
         )
     }
 }
+
