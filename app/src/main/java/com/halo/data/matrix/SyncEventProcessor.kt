@@ -45,6 +45,7 @@ class SyncEventProcessor @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val activeListeners = mutableSetOf<String>()
 
     /**
      * Start the sync event processing pipeline.
@@ -53,11 +54,30 @@ class SyncEventProcessor @Inject constructor(
         scope.launch(ioDispatcher) {
             slidingSyncManager.syncState.collect { state ->
                 if (state is SyncState.Syncing) {
-                    // Integration note: 
-                    // In a production build, we would register a RoomListServiceListener 
-                    // and per-room TimelineListeners here.
-                    // The SDK would then call processRoomMessage() and processHaloPost() 
-                    // as events arrive.
+                    attachTimelineListeners(scope)
+                }
+            }
+        }
+    }
+
+    private suspend fun attachTimelineListeners(scope: CoroutineScope) {
+        val client = slidingSyncManager.getSyncService()?.roomListService()?.allRooms() ?: return
+        // In a real app we'd observe the room list. For remediation, we'll pull once and attach.
+        val entries = client.entries()
+        // entries might be filtered/limited. 
+        // Better to use client.rooms() if available on the main Client.
+        val sdkClient = slidingSyncManager.matrixClientManager.getClient() ?: return
+        sdkClient.rooms().forEach { room ->
+            val roomId = room.id()
+            if (activeListeners.contains(roomId)) return@forEach
+            activeListeners.add(roomId)
+
+            scope.launch(ioDispatcher) {
+                try {
+                    val timeline = room.timeline()
+                    timeline.addListener(HaloTimelineListener(roomId, this@SyncEventProcessor, scope))
+                } catch (e: Exception) {
+                    activeListeners.remove(roomId)
                 }
             }
         }
@@ -145,6 +165,46 @@ class SyncEventProcessor @Inject constructor(
             storyDao.insertStories(listOf(entity))
         } catch (e: Exception) {
             // Malformed event — skip
+        }
+    }
+}
+
+private class HaloTimelineListener(
+    private val roomId: String,
+    private val processor: SyncEventProcessor,
+    private val scope: CoroutineScope
+) : org.matrix.rustcomponents.sdk.TimelineListener {
+    override fun onUpdate(diff: List<org.matrix.rustcomponents.sdk.TimelineDiff>) {
+        diff.forEach { d ->
+            val append = d.append() ?: return@forEach
+            append.forEach { item ->
+                val event = item.asEvent() ?: return@forEach
+                val msg = event.content().asRoomMessage() ?: run {
+                    // Check for Halo custom events
+                    val type = event.eventType()
+                    val sender = event.sender()
+                    val eventId = event.eventId() ?: "remote_${System.currentTimeMillis()}"
+                    val json = event.content().toString() // Raw JSON
+
+                    scope.launch {
+                        when (type) {
+                            "com.halo.post" -> processor.processHaloPost(eventId, sender, roomId, json)
+                            "com.halo.story" -> processor.processHaloStory(eventId, sender, roomId, json)
+                        }
+                    }
+                    return@forEach
+                }
+
+                // Process standard message
+                val body = msg.body()
+                val senderId = event.sender()
+                val eventId = event.eventId() ?: "remote_${System.currentTimeMillis()}"
+                val timestamp = event.timestamp().toLong()
+
+                scope.launch {
+                    processor.processRoomMessage(roomId, eventId, senderId, body, timestamp)
+                }
+            }
         }
     }
 }

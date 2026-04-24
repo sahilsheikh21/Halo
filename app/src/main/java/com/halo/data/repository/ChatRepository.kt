@@ -96,9 +96,8 @@ class ChatRepository @Inject constructor(
         // 2. Send via SDK
         val client = matrixClientManager.getClient() ?: return
         try {
-            // SDK: val room = client.getRoom(roomId) ?: return
-            // SDK: room.timeline().sendMessage(RoomMessageEventContentWithoutRelation.text(body))
-            // TODO: Uncomment when SDK API confirmed
+            val room = client.getRoom(roomId) ?: return
+            room.timeline().sendMessage(org.matrix.rustcomponents.sdk.RoomMessageEventContentWithoutRelation.text(body))
         } catch (e: Exception) {
             // Logic to mark message as failed can be added here
         }
@@ -115,16 +114,29 @@ class ChatRepository @Inject constructor(
      */
     suspend fun createDirectMessage(userId: String): Result<String> {
         val client = matrixClientManager.getClient()
-            ?: return Result.success("dm_${userId.replace("@", "").replace(":", "_")}")
+            ?: return Result.failure(Exception("Not authenticated"))
 
         return try {
-            // TODO: Replace with actual SDK call when CreateRoomParameters API is confirmed:
-            // val roomId = client.createRoom(CreateRoomParameters(
-            //     name = null, isEncrypted = true, isDirect = true, visibility = ...,
-            //     preset = RoomPreset.PRIVATE_CHAT, invite = listOf(userId)
-            // ))
-            // For now return a placeholder that lets navigation work
-            Result.success("dm_${userId.replace("@", "").replace(":", "_")}")
+            val params = org.matrix.rustcomponents.sdk.CreateRoomParameters(
+                name = null,
+                isDirect = true,
+                visibility = org.matrix.rustcomponents.sdk.RoomVisibility.PRIVATE,
+                preset = org.matrix.rustcomponents.sdk.RoomPreset.PRIVATE_CHAT,
+                invite = listOf(userId)
+            )
+            val roomId = client.createRoom(params)
+            
+            // Add to local DB immediately so UI can show it even before sync
+            chatRoomDao.insertChatRoom(
+                com.halo.data.local.entity.ChatRoomEntity(
+                    roomId = roomId,
+                    name = userId, // Fallback until profile syncs
+                    isDm = true,
+                    membersJoined = userId
+                )
+            )
+            
+            Result.success(roomId)
         } catch (e: Exception) {
             Result.failure(e)
         }
