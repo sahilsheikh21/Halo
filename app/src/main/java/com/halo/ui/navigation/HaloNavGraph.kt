@@ -109,6 +109,18 @@ fun HaloNavGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onNavigateToActivity = {
+                    navController.navigate(Route.Activity.path) {
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onNavigateToMessages = {
+                    navController.navigate(Route.Messages.path) {
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -172,7 +184,10 @@ fun HaloNavGraph(
             val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
             ProfileScreen(
                 userId = userId,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onMessageClick = { roomId ->
+                    navController.navigate(Route.Chat.createRoute(roomId))
+                }
             )
         }
 

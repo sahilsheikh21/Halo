@@ -18,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    private val feedRepository: FeedRepository
+    private val feedRepository: FeedRepository,
+    private val chatRepository: com.halo.data.repository.ChatRepository
 ) : ViewModel() {
 
     private val _followState = MutableStateFlow<UiState<Unit>?>(null)
@@ -50,6 +51,14 @@ class ProfileViewModel @Inject constructor(
                 _followState.value = UiState.Success(Unit)
             } catch (e: Exception) {
                 _followState.value = UiState.Error(e.message ?: "Follow action failed", e)
+            }
+        }
+    }
+
+    fun startDM(userId: String, onRoomReady: (String) -> Unit) {
+        viewModelScope.launch {
+            chatRepository.createDirectMessage(userId).onSuccess { roomId ->
+                onRoomReady(roomId)
             }
         }
     }

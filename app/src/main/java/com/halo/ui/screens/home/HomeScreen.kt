@@ -69,6 +69,8 @@ fun HomeScreen(
     onProfileClick: (String) -> Unit = {},
     onCommentClick: (String) -> Unit = {},
     onNavigateToExplore: () -> Unit = {},
+    onNavigateToActivity: () -> Unit = {},
+    onNavigateToMessages: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val posts by viewModel.feedPosts.collectAsState()
@@ -128,7 +130,7 @@ fun HomeScreen(
                         fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = onNavigateToActivity) {
                         Icon(
                             Icons.Outlined.FavoriteBorder,
                             contentDescription = "Activity",
@@ -137,7 +139,7 @@ fun HomeScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = onNavigateToMessages) {
                         Icon(
                             Icons.Outlined.Send,
                             contentDescription = "Messages",

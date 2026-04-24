@@ -64,6 +64,7 @@ import com.halo.ui.theme.TextTertiary
 fun ProfileScreen(
     userId: String,
     onBackClick: () -> Unit = {},
+    onMessageClick: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userProfile by viewModel.observeUser(userId).collectAsState(initial = null)
@@ -240,7 +241,11 @@ fun ProfileScreen(
                             )
                         }
                         OutlinedButton(
-                            onClick = {},
+                            onClick = { 
+                                viewModel.startDM(userId) { roomId ->
+                                    onMessageClick(roomId)
+                                }
+                            },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(34.dp),
