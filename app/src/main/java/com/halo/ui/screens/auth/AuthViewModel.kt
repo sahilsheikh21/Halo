@@ -102,6 +102,12 @@ class AuthViewModel @Inject constructor(
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
+
+    fun logout() {
+        viewModelScope.launch {
+            matrixClientManager.logout()
+        }
+    }
 }
 
 data class AuthUiState(

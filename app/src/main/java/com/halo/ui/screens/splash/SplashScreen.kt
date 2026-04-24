@@ -10,11 +10,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +25,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.halo.data.matrix.SessionState
+import com.halo.ui.screens.auth.AuthViewModel
 import com.halo.ui.theme.DarkBackground
 import com.halo.ui.theme.HaloCoral
 import com.halo.ui.theme.HaloGold
@@ -34,29 +38,42 @@ import kotlinx.coroutines.launch
 
 /**
  * Animated splash screen with the Halo logo scaling in.
- * Shows for 1.5 seconds then calls onFinished.
+ *
+ * During the animation the [AuthViewModel] attempts to restore a previous
+ * session from encrypted storage.  When the animation completes (≥ 1.8 s)
+ * one of two callbacks fires:
+ *  - [onAlreadyLoggedIn] — valid session was restored → navigate to Home
+ *  - [onNeedsLogin]      — no session or expired token → navigate to Login
  */
 @Composable
 fun SplashScreen(
-    onFinished: () -> Unit
+    onAlreadyLoggedIn: () -> Unit,
+    onNeedsLogin: () -> Unit,
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
-    val scale = remember { Animatable(0.4f) }
-    val alpha = remember { Animatable(0f) }
+    val sessionState by viewModel.sessionState.collectAsState()
+
+    val scale        = remember { Animatable(0.4f) }
+    val alpha        = remember { Animatable(0f) }
     val taglineAlpha = remember { Animatable(0f) }
 
+    // Kick off session restore + animation in parallel
     LaunchedEffect(Unit) {
+        // Logo scale-in
         launch {
             scale.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(700, easing = EaseOutBack)
             )
         }
+        // Logo fade-in
         launch {
             alpha.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(500, easing = EaseOutCubic)
             )
         }
+        // Tagline delayed fade-in
         launch {
             delay(400)
             taglineAlpha.animateTo(
@@ -64,8 +81,14 @@ fun SplashScreen(
                 animationSpec = tween(400)
             )
         }
+
+        // Minimum display time — give the session restore time to finish
         delay(1800)
-        onFinished()
+
+        when (sessionState) {
+            is SessionState.LoggedIn -> onAlreadyLoggedIn()
+            else                     -> onNeedsLogin()
+        }
     }
 
     Box(

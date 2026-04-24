@@ -7,6 +7,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import javax.inject.Singleton
 
@@ -18,8 +19,9 @@ object MatrixModule {
     @Singleton
     fun provideMatrixClientManager(
         @ApplicationContext context: Context,
-        @ApplicationScope applicationScope: CoroutineScope
+        @ApplicationScope applicationScope: CoroutineScope,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher
     ): MatrixClientManager {
-        return MatrixClientManager(context, applicationScope)
+        return MatrixClientManager(context, applicationScope, ioDispatcher)
     }
 }

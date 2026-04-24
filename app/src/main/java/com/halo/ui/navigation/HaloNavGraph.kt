@@ -46,7 +46,12 @@ fun HaloNavGraph(
             exitTransition = { fadeOut(tween(300)) }
         ) {
             SplashScreen(
-                onFinished = {
+                onAlreadyLoggedIn = {
+                    navController.navigate(Route.Home.path) {
+                        popUpTo(Route.Splash.path) { inclusive = true }
+                    }
+                },
+                onNeedsLogin = {
                     navController.navigate(Route.Login.path) {
                         popUpTo(Route.Splash.path) { inclusive = true }
                     }
