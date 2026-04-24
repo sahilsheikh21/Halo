@@ -42,31 +42,43 @@ class UserRepository @Inject constructor(
             ?: return@withContext Result.failure(Exception("Not authenticated"))
         
         try {
-            // If it's a full User ID, we can try to fetch profile directly
-            if (query.startsWith("@") && query.contains(":")) {
+            val users = if (query.startsWith("@") && query.contains(":")) {
                 val profile = client.getProfile(query)
-                return@withContext Result.success(listOf(
-                    UserProfile(
-                        userId = query,
-                        displayName = profile.displayName ?: "",
-                        avatarUrl = profile.avatarUrl,
-                        isCurrentUser = query == matrixClientManager.getCurrentSession()?.userId
-                    )
+                listOf(UserProfile(
+                    userId = query,
+                    displayName = profile.displayName ?: "",
+                    avatarUrl = profile.avatarUrl,
+                    isCurrentUser = query == matrixClientManager.getCurrentSession()?.userId
                 ))
+            } else {
+                val results = client.searchUsers(query, 50u)
+                results.results.map { res ->
+                    UserProfile(
+                        userId = res.userId,
+                        displayName = res.displayName ?: "",
+                        avatarUrl = res.avatarUrl,
+                        isCurrentUser = res.userId == matrixClientManager.getCurrentSession()?.userId
+                    )
+                }
             }
-
-            // Otherwise, use user directory search
-            // SDK: client.searchUsers(query, limit = 50)
-            // Note: In version 26.03.31, the exact method might be on the client
-            val results = client.searchUsers(query, 50u)
-            val users = results.results.map { res ->
-                UserProfile(
-                    userId = res.userId,
-                    displayName = res.displayName ?: "",
-                    avatarUrl = res.avatarUrl,
-                    isCurrentUser = res.userId == matrixClientManager.getCurrentSession()?.userId
+            
+            // Insert into local DB to enable profile viewing
+            val entities = users.map { user ->
+                UserEntity(
+                    userId = user.userId,
+                    displayName = user.displayName,
+                    avatarMxc = user.avatarUrl,
+                    bio = user.bio,
+                    feedRoomId = user.feedRoomId ?: "",
+                    isFollowing = user.isFollowing,
+                    followerCount = user.followerCount,
+                    followingCount = user.followingCount,
+                    postCount = user.postCount,
+                    cachedAt = System.currentTimeMillis()
                 )
             }
+            userDao.insertUsers(entities)
+            
             Result.success(users)
         } catch (e: Exception) {
             Result.failure(e)
@@ -84,6 +96,19 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun followUser(userId: String) {
+        // Ensure user exists in DB first (e.g. from search)
+        if (userDao.getUserById(userId) == null) {
+            // Fetch basic profile if missing
+            matrixClientManager.getClient()?.getProfile(userId)?.let { profile ->
+                userDao.insertUser(UserEntity(
+                    userId = userId,
+                    displayName = profile.displayName ?: userId,
+                    avatarMxc = profile.avatarUrl,
+                    cachedAt = System.currentTimeMillis()
+                ))
+            }
+        }
+        
         // TODO: Join the user's Feed Room via Matrix SDK
         userDao.updateFollowState(userId, true)
     }
