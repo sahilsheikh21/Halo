@@ -37,4 +37,7 @@ object DatabaseModule {
 
     @Provides
     fun provideUserDao(database: HaloDatabase): UserDao = database.userDao()
+
+    @Provides
+    fun provideChatRoomDao(database: HaloDatabase): com.halo.data.local.dao.ChatRoomDao = database.chatRoomDao()
 }

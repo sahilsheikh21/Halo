@@ -53,6 +53,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 /**
  * Full-screen story viewer with:
  * - Segmented progress bar at top
@@ -63,10 +66,12 @@ import java.util.Locale
 @Composable
 fun StoryViewerScreen(
     userId: String,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    viewModel: StoryViewModel = hiltViewModel()
 ) {
     // Find the story group for the given user
-    val storyGroup = MockData.storyGroups.find { it.authorId == userId }
+    val storyGroups by viewModel.storyGroups.collectAsStateWithLifecycle()
+    val storyGroup = storyGroups.find { it.authorId == userId }
     val stories = storyGroup?.stories ?: emptyList()
 
     if (stories.isEmpty()) {
@@ -95,6 +100,11 @@ fun StoryViewerScreen(
     // Progress animation (5s per story)
     val progress = remember(currentIndex) { Animatable(0f) }
     LaunchedEffect(currentIndex) {
+        // Mark current story as seen
+        if (!story.isSeen) {
+            viewModel.markStorySeen(story.eventId)
+        }
+        
         progress.snapTo(0f)
         progress.animateTo(
             targetValue = 1f,

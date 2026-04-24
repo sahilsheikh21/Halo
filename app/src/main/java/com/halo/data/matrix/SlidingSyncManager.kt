@@ -5,16 +5,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.halo.di.ApplicationScope
+import org.matrix.rustcomponents.sdk.SyncService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Manages Sliding Sync (MSC4186) connections for real-time room updates.
- *
- * Sliding Sync provides efficient sync by only syncing visible rooms
- * and a configurable window of room data, rather than the full account state.
- *
- * This is the production-grade sync mechanism used by Element X.
+ * Manages SyncService connections for real-time updates.
  */
 @Singleton
 class SlidingSyncManager @Inject constructor(
@@ -24,8 +20,10 @@ class SlidingSyncManager @Inject constructor(
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
+    private var activeSyncService: SyncService? = null
+
     /**
-     * Start the Sliding Sync connection.
+     * Start the sync connection.
      * This begins streaming room updates from the homeserver.
      */
     suspend fun startSync() {
@@ -34,17 +32,16 @@ class SlidingSyncManager @Inject constructor(
         try {
             _syncState.value = SyncState.Starting
 
-            // TODO: Initialize Sliding Sync with Matrix Rust SDK
-            // val slidingSync = client.slidingSync()
-            //     .addList(SlidingSyncList.Builder("feed_rooms")
-            //         .filters(SlidingSyncListFilters(
-            //             notTypes = listOf("m.space"),
-            //             isInvite = false
-            //         ))
-            //         .syncMode(SlidingSyncMode.GROWING)
-            //         .build())
-            //     .build()
-            // slidingSync.sync()
+            val client = matrixClientManager.getClient()
+                ?: throw IllegalStateException("Matrix Client not initialized")
+
+            val syncService = activeSyncService ?: client.syncService()
+                .withSharePos(true)
+                .withOfflineMode()
+                .finish()
+
+            activeSyncService = syncService
+            syncService.start()
 
             _syncState.value = SyncState.Syncing
         } catch (e: Exception) {
@@ -53,19 +50,27 @@ class SlidingSyncManager @Inject constructor(
     }
 
     /**
-     * Stop the Sliding Sync connection.
+     * Stop the sync connection.
      */
     suspend fun stopSync() {
-        // TODO: Stop the sync loop
-        _syncState.value = SyncState.Idle
+        try {
+            activeSyncService?.stop()
+        } catch (_: Exception) {
+        } finally {
+            _syncState.value = SyncState.Idle
+        }
     }
 
     /**
+     * Get the SyncService instance to access the RoomListService or timelines.
+     */
+    fun getSyncService(): SyncService? = activeSyncService
+
+    /**
      * Subscribe to a specific room for real-time updates.
-     * Used when viewing a user's feed room or a DM.
      */
     suspend fun subscribeToRoom(roomId: String) {
-        // TODO: Add room subscription to sliding sync
+        // TODO: Subscribe to room timeline via RoomListService
     }
 
     /**

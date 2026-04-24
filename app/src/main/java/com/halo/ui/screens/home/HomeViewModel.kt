@@ -11,6 +11,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,24 +26,27 @@ class HomeViewModel @Inject constructor(
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     // Use mock data until Matrix SDK is wired up
-    private val _feedPosts = MutableStateFlow<List<Post>>(MockData.posts)
-    val feedPosts: StateFlow<List<Post>> = _feedPosts.asStateFlow()
+    val feedPosts: StateFlow<List<Post>> = feedRepository.getFeedPosts()
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
-    private val _storyGroups = MutableStateFlow<List<StoryGroup>>(MockData.storyGroups)
-    val storyGroups: StateFlow<List<StoryGroup>> = _storyGroups.asStateFlow()
+    val storyGroups: StateFlow<List<StoryGroup>> = storyRepository.getActiveStoryGroups()
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     fun toggleLike(eventId: String) {
         viewModelScope.launch {
-            val current = _feedPosts.value.toMutableList()
-            val idx = current.indexOfFirst { it.eventId == eventId }
-            if (idx >= 0) {
-                val post = current[idx]
-                val nowLiked = !post.isLikedByMe
-                current[idx] = post.copy(
-                    isLikedByMe = nowLiked,
-                    likeCount = post.likeCount + if (nowLiked) 1 else -1
-                )
-                _feedPosts.value = current
+            val post = feedPosts.value.find { it.eventId == eventId } ?: return@launch
+            if (post.isLikedByMe) {
+                feedRepository.unlikePost(eventId)
+            } else {
+                feedRepository.likePost(eventId)
             }
         }
     }
@@ -49,9 +54,14 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            // TODO: call feedRepository.refreshFeed() once Matrix SDK integrated
-            kotlinx.coroutines.delay(800)
-            _isRefreshing.value = false
+            try {
+                kotlinx.coroutines.joinAll(
+                    launch { feedRepository.refreshFeed() },
+                    launch { storyRepository.refreshStories() }
+                )
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 }
