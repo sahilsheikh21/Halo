@@ -41,8 +41,37 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    // Temporary in-memory mock timeline until Matrix SDK timeline is wired
+    private val _mockTimelines = mutableMapOf<String, kotlinx.coroutines.flow.MutableStateFlow<List<com.halo.ui.screens.chat.ChatMessage>>>()
+
+    fun getRoomTimeline(roomId: String): Flow<List<com.halo.ui.screens.chat.ChatMessage>> {
+        // TODO: Return actual room timeline flow from Matrix SDK Room.timeline()
+        if (!_mockTimelines.containsKey(roomId)) {
+            val initialMessages = listOf(
+                com.halo.ui.screens.chat.ChatMessage("m1", "Hey! How's it going? 👋", false, System.currentTimeMillis() - 86_400_000),
+                com.halo.ui.screens.chat.ChatMessage("m2", "All good! Just finished editing some shots from the trip", true, System.currentTimeMillis() - 85_800_000),
+                com.halo.ui.screens.chat.ChatMessage("m3", "Ooh nice, can't wait to see them 🔥", false, System.currentTimeMillis() - 82_000_000),
+                com.halo.ui.screens.chat.ChatMessage("m4", "I'll post them later today. The lighting in Greece was unreal", true, System.currentTimeMillis() - 80_000_000),
+                com.halo.ui.screens.chat.ChatMessage("m5", "Let's catch up soon!", false, System.currentTimeMillis() - 900_000)
+            )
+            _mockTimelines[roomId] = kotlinx.coroutines.flow.MutableStateFlow(initialMessages)
+        }
+        return _mockTimelines[roomId]!!
+    }
+
     suspend fun sendMessage(roomId: String, body: String) {
         // TODO: Send m.room.message via Matrix SDK
+        val timelineFlow = _mockTimelines[roomId] ?: return
+        val currentList = timelineFlow.value.toMutableList()
+        currentList.add(
+            com.halo.ui.screens.chat.ChatMessage(
+                id = "m_${System.currentTimeMillis()}",
+                body = body,
+                isMe = true,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+        timelineFlow.value = currentList
     }
 
     suspend fun createDirectMessage(userId: String): Result<String> {

@@ -35,6 +35,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.halo.data.mock.MockData
 import com.halo.ui.theme.DarkBackground
 import com.halo.ui.theme.DarkSurface
 import com.halo.ui.theme.DarkSurfaceElevated
@@ -73,22 +74,15 @@ data class ChatMessage(
 @Composable
 fun ChatScreen(
     roomId: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val chatRoom = MockData.chatRooms.find { it.roomId == roomId }
+    val chatRoom by viewModel.getRoomDetails(roomId).collectAsStateWithLifecycle(initialValue = null)
     val roomName = chatRoom?.name ?: "Chat"
     val avatarUrl = chatRoom?.avatarUrl
 
     var inputText by remember { mutableStateOf("") }
-    val messages = remember {
-        mutableStateListOf(
-            ChatMessage("m1", "Hey! How's it going? 👋", false, System.currentTimeMillis() - 86_400_000),
-            ChatMessage("m2", "All good! Just finished editing some shots from the trip", true, System.currentTimeMillis() - 85_800_000),
-            ChatMessage("m3", "Ooh nice, can't wait to see them 🔥", false, System.currentTimeMillis() - 82_000_000),
-            ChatMessage("m4", "I'll post them later today. The lighting in Greece was unreal", true, System.currentTimeMillis() - 80_000_000),
-            ChatMessage("m5", chatRoom?.lastMessage ?: "Let's catch up soon!", false, System.currentTimeMillis() - 900_000)
-        )
-    }
+    val messages by viewModel.getRoomTimeline(roomId).collectAsStateWithLifecycle(initialValue = emptyList())
     val listState = rememberLazyListState()
 
     // Scroll to bottom on new message
@@ -196,14 +190,7 @@ fun ChatScreen(
             IconButton(
                 onClick = {
                     if (inputText.isNotBlank()) {
-                        messages.add(
-                            ChatMessage(
-                                id = "m_${System.currentTimeMillis()}",
-                                body = inputText.trim(),
-                                isMe = true,
-                                timestamp = System.currentTimeMillis()
-                            )
-                        )
+                        viewModel.sendMessage(roomId, inputText.trim())
                         inputText = ""
                     }
                 }
