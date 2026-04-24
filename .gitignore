@@ -1,0 +1,24 @@
+# Build outputs
+app/build/
+build/
+.gradle/
+*.class
+*.jar
+*.aar
+
+# Android Studio generated files
+.idea/
+*.iml
+local.properties
+
+# Gradle caches
+.gradle/
+
+# Kotlin build caches
+app/build/kotlin/
+app/build/kspCaches/
+app/build/generated/
+
+# OS
+.DS_Store
+Thumbs.db
