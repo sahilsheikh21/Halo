@@ -131,10 +131,17 @@ class MatrixClientManager @Inject constructor(
 
             val normalizedUrl = normalizeHomeserverUrl(homeserverUrl)
 
-            // Build a temporary client to discover the homeserver
-            val client = ClientBuilder()
-                .serverNameOrHomeserverUrl(normalizedUrl)
-                .build()
+            // Try discovery first (checks .well-known), but fall back to direct URL 
+            // if discovery fails (common for custom or internal servers).
+            val client = try {
+                ClientBuilder()
+                    .serverNameOrHomeserverUrl(normalizedUrl)
+                    .build()
+            } catch (e: Exception) {
+                ClientBuilder()
+                    .homeserverUrl(normalizedUrl)
+                    .build()
+            }
 
             // Perform password login
             client.login(

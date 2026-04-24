@@ -102,6 +102,13 @@ fun HaloNavGraph(
                 },
                 onProfileClick = { userId ->
                     navController.navigate(Route.Profile.createRoute(userId))
+                },
+                onNavigateToExplore = {
+                    navController.navigate(Route.Explore.path) {
+                        popUpTo(Route.Home.path) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -129,6 +136,13 @@ fun HaloNavGraph(
             ActivityScreen(
                 onProfileClick = { userId ->
                     navController.navigate(Route.Profile.createRoute(userId))
+                },
+                onNavigateToExplore = {
+                    navController.navigate(Route.Explore.path) {
+                        popUpTo(Route.Home.path) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -137,6 +151,13 @@ fun HaloNavGraph(
             MessageListScreen(
                 onChatClick = { roomId ->
                     navController.navigate(Route.Chat.createRoute(roomId))
+                },
+                onNavigateToExplore = {
+                    navController.navigate(Route.Explore.path) {
+                        popUpTo(Route.Home.path) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }

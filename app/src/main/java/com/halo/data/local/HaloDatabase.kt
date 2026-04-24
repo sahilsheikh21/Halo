@@ -11,14 +11,18 @@ import com.halo.data.local.entity.PostEntity
 import com.halo.data.local.entity.StoryEntity
 import com.halo.data.local.entity.UserEntity
 
+import com.halo.data.local.dao.MessageDao
+import com.halo.data.local.entity.MessageEntity
+
 @Database(
     entities = [
         PostEntity::class,
         StoryEntity::class,
         UserEntity::class,
-        ChatRoomEntity::class
+        ChatRoomEntity::class,
+        MessageEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class HaloDatabase : RoomDatabase() {
@@ -26,4 +30,5 @@ abstract class HaloDatabase : RoomDatabase() {
     abstract fun storyDao(): StoryDao
     abstract fun userDao(): UserDao
     abstract fun chatRoomDao(): ChatRoomDao
+    abstract fun messageDao(): MessageDao
 }

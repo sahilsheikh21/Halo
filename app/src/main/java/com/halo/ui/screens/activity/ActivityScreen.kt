@@ -53,9 +53,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import com.halo.ui.components.EmptyState
+
 @Composable
 fun ActivityScreen(
     onProfileClick: (String) -> Unit = {},
+    onNavigateToExplore: () -> Unit = {},
     viewModel: ActivityViewModel = hiltViewModel()
 ) {
     val activities by viewModel.activities.collectAsState()
@@ -75,19 +78,31 @@ fun ActivityScreen(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
         )
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(activities, key = { it.id }) { item ->
-                ActivityRow(
-                    item = item,
-                    onProfileClick = { onProfileClick(item.actorId) }
+        if (activities.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                EmptyState(
+                    icon = Icons.Filled.Favorite,
+                    title = "No activity yet",
+                    description = "Interact with posts or follow people to see what's happening.",
+                    buttonText = "Explore people and posts",
+                    onButtonClick = onNavigateToExplore
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 78.dp)
-                        .height(0.5.dp)
-                        .background(DividerColor)
-                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(activities, key = { it.id }) { item ->
+                    ActivityRow(
+                        item = item,
+                        onProfileClick = { onProfileClick(item.actorId) }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 78.dp)
+                            .height(0.5.dp)
+                            .background(DividerColor)
+                    )
+                }
             }
         }
     }

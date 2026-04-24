@@ -4,6 +4,8 @@ import com.halo.data.local.dao.UserDao
 import com.halo.data.local.entity.UserEntity
 import com.halo.data.matrix.MatrixClientManager
 import com.halo.domain.model.UserProfile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
@@ -16,25 +18,7 @@ class UserRepository @Inject constructor(
     private val matrixClientManager: MatrixClientManager
 ) {
     suspend fun refreshUsers() {
-        // Temporarily seed MockData if DB is empty
-        val currentUsers = userDao.getFollowingUsers().first()
-        if (currentUsers.isEmpty()) {
-            val mockEntities = com.halo.data.mock.MockData.users.map { user ->
-                UserEntity(
-                    userId = user.userId,
-                    displayName = user.displayName,
-                    avatarMxc = user.avatarUrl, // HTTP URL for now
-                    bio = user.bio,
-                    feedRoomId = user.feedRoomId ?: "mock_feed_room",
-                    isFollowing = user.isFollowing,
-                    followerCount = user.followerCount,
-                    followingCount = user.followingCount,
-                    postCount = user.postCount,
-                    cachedAt = System.currentTimeMillis()
-                )
-            }
-            userDao.insertUsers(mockEntities)
-        }
+        // TODO: Sync following users from Matrix SDK and update local DB
     }
     fun observeUser(userId: String): Flow<UserProfile?> {
         return userDao.observeUser(userId).map { entity ->
@@ -45,6 +29,47 @@ class UserRepository @Inject constructor(
     fun getFollowingUsers(): Flow<List<UserProfile>> {
         return userDao.getFollowingUsers().map { entities ->
             entities.map { it.toDomainModel() }
+        }
+    }
+
+    /**
+     * Search for users globally via the Matrix homeserver.
+     * If query starts with @, tries to fetch that specific user.
+     * Otherwise, uses the homeserver's user directory search.
+     */
+    suspend fun searchUsersReal(query: String): Result<List<UserProfile>> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val client = matrixClientManager.getClient() 
+            ?: return@withContext Result.failure(Exception("Not authenticated"))
+        
+        try {
+            // If it's a full User ID, we can try to fetch profile directly
+            if (query.startsWith("@") && query.contains(":")) {
+                val profile = client.getProfile(query)
+                return@withContext Result.success(listOf(
+                    UserProfile(
+                        userId = query,
+                        displayName = profile.displayName ?: "",
+                        avatarUrl = profile.avatarUrl,
+                        isCurrentUser = query == matrixClientManager.getCurrentSession()?.userId
+                    )
+                ))
+            }
+
+            // Otherwise, use user directory search
+            // SDK: client.searchUsers(query, limit = 50)
+            // Note: In version 26.03.31, the exact method might be on the client
+            val results = client.searchUsers(query, 50u)
+            val users = results.results.map { res ->
+                UserProfile(
+                    userId = res.userId,
+                    displayName = res.displayName ?: "",
+                    avatarUrl = res.avatarUrl,
+                    isCurrentUser = res.userId == matrixClientManager.getCurrentSession()?.userId
+                )
+            }
+            Result.success(users)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

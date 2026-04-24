@@ -47,9 +47,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.material.icons.outlined.Chat
+import com.halo.ui.components.EmptyState
+
 @Composable
 fun MessageListScreen(
     onChatClick: (String) -> Unit = {},
+    onNavigateToExplore: () -> Unit = {},
     viewModel: MessageViewModel = hiltViewModel()
 ) {
     val chatRooms by viewModel.chatRooms.collectAsState()
@@ -74,22 +78,34 @@ fun MessageListScreen(
                 color = TextPrimary,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = {}) {
+            IconButton(onClick = onNavigateToExplore) {
                 Icon(Icons.Default.Edit, contentDescription = "New Message", tint = TextSecondary)
             }
         }
 
         // ─── Chat list ─────────────────────────────────────────────
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(chatRooms, key = { it.roomId }) { room ->
-                ChatRoomRow(room = room, onClick = { onChatClick(room.roomId) })
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 80.dp)
-                        .height(0.5.dp)
-                        .background(DividerColor)
+        if (chatRooms.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                EmptyState(
+                    icon = Icons.Outlined.Chat,
+                    title = "No messages yet",
+                    description = "Start a conversation with someone by searching for their username.",
+                    buttonText = "Find people to message",
+                    onButtonClick = onNavigateToExplore
                 )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(chatRooms, key = { it.roomId }) { room ->
+                    ChatRoomRow(room = room, onClick = { onChatClick(room.roomId) })
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 80.dp)
+                            .height(0.5.dp)
+                            .background(DividerColor)
+                    )
+                }
             }
         }
     }

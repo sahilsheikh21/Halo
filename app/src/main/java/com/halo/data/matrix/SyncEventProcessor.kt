@@ -1,5 +1,6 @@
 package com.halo.data.matrix
 
+import com.halo.data.local.dao.MessageDao
 import com.halo.data.local.dao.PostDao
 import com.halo.data.local.dao.StoryDao
 import com.halo.data.local.dao.UserDao
@@ -7,6 +8,7 @@ import com.halo.data.local.entity.PostEntity
 import com.halo.data.local.entity.StoryEntity
 import com.halo.data.matrix.events.HaloPost
 import com.halo.data.matrix.events.HaloStory
+import com.halo.data.repository.ChatRepository
 import com.halo.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +37,8 @@ import javax.inject.Singleton
 @Singleton
 class SyncEventProcessor @Inject constructor(
     private val slidingSyncManager: SlidingSyncManager,
-    private val matrixClientManager: MatrixClientManager,
+    private val chatRepository: ChatRepository,
+    private val messageDao: MessageDao,
     private val postDao: PostDao,
     private val storyDao: StoryDao,
     private val userDao: UserDao,
@@ -45,22 +48,38 @@ class SyncEventProcessor @Inject constructor(
 
     /**
      * Start the sync event processing pipeline.
-     * Observes [SlidingSyncManager.syncState] and starts room subscriptions
-     * when the sync service transitions to Syncing state.
      */
     fun startProcessing(scope: CoroutineScope) {
         scope.launch(ioDispatcher) {
             slidingSyncManager.syncState.collect { state ->
                 if (state is SyncState.Syncing) {
-                    // SDK timeline listeners would be registered here once
-                    // the RoomListService API surface is confirmed for this version.
-                    // For now, Room DB is populated via:
-                    //  1. Mock seeding (refreshFeed / refreshStories)
-                    //  2. Direct writes from CreateViewModel (publishPost / publishStory)
-                    // TODO: Register timeline listeners via SlidingSyncManager.getSyncService()
+                    // Integration note: 
+                    // In a production build, we would register a RoomListServiceListener 
+                    // and per-room TimelineListeners here.
+                    // The SDK would then call processRoomMessage() and processHaloPost() 
+                    // as events arrive.
                 }
             }
         }
+    }
+
+    /**
+     * Process a standard Matrix m.room.message event.
+     */
+    suspend fun processRoomMessage(
+        roomId: String,
+        eventId: String,
+        senderId: String,
+        body: String,
+        timestamp: Long
+    ) {
+        chatRepository.appendIncomingMessage(
+            roomId = roomId,
+            eventId = eventId,
+            senderId = senderId,
+            body = body,
+            timestamp = timestamp
+        )
     }
 
     /**

@@ -59,12 +59,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.material.icons.outlined.People
+import com.halo.ui.components.EmptyState
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onStoryClick: (String) -> Unit = {},
     onProfileClick: (String) -> Unit = {},
     onCommentClick: (String) -> Unit = {},
+    onNavigateToExplore: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val posts by viewModel.feedPosts.collectAsState()
@@ -182,7 +186,16 @@ fun HomeScreen(
 
             // ─── Feed ─────────────────────────────────────────────
             if (posts.isEmpty()) {
-                items(3) { ShimmerPostCard() }
+                item {
+                    EmptyState(
+                        icon = Icons.Outlined.People,
+                        title = "Your feed is empty",
+                        description = "Follow people to see their latest posts and stories here.",
+                        buttonText = "Connect with other people",
+                        onButtonClick = onNavigateToExplore,
+                        modifier = Modifier.padding(top = 40.dp)
+                    )
+                }
             } else {
                 items(posts, key = { it.eventId }) { post ->
                     PostCard(

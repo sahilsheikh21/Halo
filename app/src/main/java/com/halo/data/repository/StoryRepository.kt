@@ -58,28 +58,6 @@ class StoryRepository @Inject constructor(
 
     suspend fun refreshStories() {
         // TODO: Sync com.halo.story state events from followed rooms
-
-        // Temporarily seed MockData if DB is empty so UI works during transition
-        val cutoff = System.currentTimeMillis() - Story.TTL_MS
-        val currentStories = storyDao.getActiveStories(cutoff).first()
-        if (currentStories.isEmpty()) {
-            val mockEntities = com.halo.data.mock.MockData.storyGroups.flatMap { group ->
-                group.stories.map { story ->
-                    com.halo.data.local.entity.StoryEntity(
-                        eventId = story.eventId,
-                        feedRoomId = "mock_story_room",
-                        authorId = story.authorId,
-                        mediaMxc = story.mediaUrl, // using http URL in mxc field for mock
-                        storyType = story.storyType,
-                        durationMs = story.durationMs,
-                        caption = story.caption,
-                        createdAt = story.createdAt,
-                        isSeen = story.isSeen
-                    )
-                }
-            }
-            storyDao.insertStories(mockEntities)
-        }
     }
     suspend fun publishStory(mediaMxc: String) {
         // TODO: Send com.halo.story state event via Matrix SDK

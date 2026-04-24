@@ -17,6 +17,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
@@ -41,11 +45,17 @@ class ExploreViewModel @Inject constructor(
         )
 
     val searchResults: StateFlow<List<UserProfile>> = _searchQuery
+        .debounce(500)
+        .distinctUntilChanged()
         .flatMapLatest { query ->
             if (query.isBlank()) {
                 flowOf(emptyList())
             } else {
-                userRepository.searchUsers("%$query%")
+                flow {
+                    // Try real search
+                    val result = userRepository.searchUsersReal(query)
+                    emit(result.getOrDefault(emptyList()))
+                }
             }
         }
         .stateIn(

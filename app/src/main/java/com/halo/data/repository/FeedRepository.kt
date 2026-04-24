@@ -104,43 +104,6 @@ class FeedRepository @Inject constructor(
 
     suspend fun refreshFeed() {
         // TODO: Sync feed rooms via Sliding Sync, parse com.halo.post events
-        
-        // Temporarily seed MockData if DB is empty so UI works during transition
-        val currentPosts = postDao.getFeedPosts(1, 0).first()
-        if (currentPosts.isEmpty()) {
-            val mockEntities = com.halo.data.mock.MockData.posts.map { post ->
-                com.halo.data.local.entity.PostEntity(
-                    eventId = post.eventId,
-                    feedRoomId = "mock_feed_room",
-                    authorId = post.authorId,
-                    caption = post.caption,
-                    mediaJson = kotlinx.serialization.json.Json.encodeToString(
-                        post.mediaUrls.map {
-                            com.halo.data.matrix.events.PostMedia(
-                                mxcUri = it.mxcUri,
-                                mimeType = it.mimeType,
-                                width = it.width,
-                                height = it.height,
-                                thumbnailMxc = it.thumbnailUrl,
-                                blurhash = it.blurhash
-                            )
-                        }
-                    ),
-                    locationJson = post.locationName?.let {
-                        kotlinx.serialization.json.Json.encodeToString(
-                            com.halo.data.matrix.events.PostLocation(name = it)
-                        )
-                    },
-                    tagsJson = kotlinx.serialization.json.Json.encodeToString(post.tags),
-                    likeCount = post.likeCount,
-                    commentCount = post.commentCount,
-                    isLikedByMe = post.isLikedByMe,
-                    createdAt = post.createdAt,
-                    cachedAt = System.currentTimeMillis()
-                )
-            }
-            postDao.insertPosts(mockEntities)
-        }
     }
     suspend fun publishPost(
         caption: String,
