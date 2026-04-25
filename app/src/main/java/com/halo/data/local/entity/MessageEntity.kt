@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.halo.domain.model.ChatMessage
+import com.halo.domain.model.MessageStatus
 
 @Entity(
     tableName = "messages",
@@ -31,12 +32,22 @@ data class MessageEntity(
     val isMe: Boolean,
 
     @ColumnInfo(name = "timestamp")
-    val timestamp: Long
+    val timestamp: Long,
+
+    /**
+     * Delivery status for outbound messages.
+     * Inbound messages (received via sync) are always stored as SENT.
+     * Values: [MessageStatus.SENDING], [MessageStatus.SENT], [MessageStatus.FAILED]
+     */
+    @ColumnInfo(name = "status", defaultValue = MessageStatus.SENT)
+    val status: String = MessageStatus.SENT
 )
 
 fun MessageEntity.toDomain() = ChatMessage(
-    id = id,
-    body = body,
-    isMe = isMe,
-    timestamp = timestamp
+    id        = id,
+    senderId  = senderId,
+    body      = body,
+    isMe      = isMe,
+    timestamp = timestamp,
+    status    = status
 )

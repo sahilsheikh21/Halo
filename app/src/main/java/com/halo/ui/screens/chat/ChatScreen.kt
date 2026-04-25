@@ -1,6 +1,7 @@
 package com.halo.ui.screens.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,10 +37,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,11 +49,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.halo.domain.model.ChatMessage
+import com.halo.domain.model.MessageStatus
 import com.halo.ui.theme.DarkBackground
 import com.halo.ui.theme.DarkSurface
 import com.halo.ui.theme.DarkSurfaceElevated
 import com.halo.ui.theme.DarkSurfaceVariant
+import com.halo.ui.theme.HaloCoral
 import com.halo.ui.theme.HaloPurple
 import com.halo.ui.theme.HaloPurpleDark
 import com.halo.ui.theme.TextPrimary
@@ -63,8 +67,6 @@ import com.halo.ui.theme.TextTertiary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-import com.halo.domain.model.ChatMessage
 
 @Composable
 fun ChatScreen(
@@ -80,7 +82,7 @@ fun ChatScreen(
     val messages by viewModel.getRoomTimeline(roomId).collectAsStateWithLifecycle(initialValue = emptyList())
     val listState = rememberLazyListState()
 
-    // Scroll to bottom on new message
+    // Scroll to bottom whenever a new message arrives
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.lastIndex)
@@ -106,7 +108,8 @@ fun ChatScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextPrimary)
             }
             AsyncImage(
-                model = avatarUrl ?: "https://ui-avatars.com/api/?name=${roomName}&background=1A1A1F&color=8B5CF6",
+                model = avatarUrl
+                    ?: "https://ui-avatars.com/api/?name=$roomName&background=1A1A1F&color=8B5CF6",
                 contentDescription = roomName,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -140,7 +143,16 @@ fun ChatScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(messages, key = { it.id }) { message ->
-                MessageBubble(message = message)
+                MessageBubble(
+                    message = message,
+                    onRetry = {
+                        viewModel.retryMessage(
+                            roomId    = roomId,
+                            messageId = message.id,
+                            body      = message.body
+                        )
+                    }
+                )
             }
         }
 
@@ -154,10 +166,20 @@ fun ChatScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = {}) {
-                Icon(Icons.Default.CameraAlt, "Camera", tint = TextSecondary, modifier = Modifier.size(22.dp))
+                Icon(
+                    Icons.Default.CameraAlt,
+                    "Camera",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(22.dp)
+                )
             }
             IconButton(onClick = {}) {
-                Icon(Icons.Default.Image, "Gallery", tint = TextSecondary, modifier = Modifier.size(22.dp))
+                Icon(
+                    Icons.Default.Image,
+                    "Gallery",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(22.dp)
+                )
             }
 
             TextField(
@@ -167,13 +189,13 @@ fun ChatScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DarkSurfaceVariant,
+                    focusedContainerColor   = DarkSurfaceVariant,
                     unfocusedContainerColor = DarkSurfaceVariant,
-                    focusedIndicatorColor = Color.Transparent,
+                    focusedIndicatorColor   = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    cursorColor = HaloPurple
+                    focusedTextColor        = TextPrimary,
+                    unfocusedTextColor      = TextPrimary,
+                    cursorColor             = HaloPurple
                 ),
                 modifier = Modifier
                     .weight(1f)
@@ -201,11 +223,23 @@ fun ChatScreen(
     }
 }
 
+// ─── Message bubble ───────────────────────────────────────────────────────────
+
 @Composable
-private fun MessageBubble(message: ChatMessage) {
-    val alignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
-    val bgColor = if (message.isMe) HaloPurpleDark else DarkSurfaceElevated
-    val textColor = if (message.isMe) Color.White else TextPrimary
+private fun MessageBubble(
+    message: ChatMessage,
+    onRetry: () -> Unit
+) {
+    val isFailed  = message.status == MessageStatus.FAILED
+    val isSending = message.status == MessageStatus.SENDING
+
+    val alignment  = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
+    val bgColor    = when {
+        isFailed     -> HaloCoral.copy(alpha = 0.25f)          // red tint for failed
+        message.isMe -> HaloPurpleDark
+        else         -> DarkSurfaceElevated
+    }
+    val textColor  = if (message.isMe) Color.White else TextPrimary
     val bubbleShape = if (message.isMe) {
         RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
     } else {
@@ -219,34 +253,91 @@ private fun MessageBubble(message: ChatMessage) {
         Column(
             horizontalAlignment = if (message.isMe) Alignment.End else Alignment.Start
         ) {
+            // B13: Show sender ID above bubbles for messages from other people.
+            // In a 1-to-1 DM the room name already identifies the sender, so this
+            // is most useful in group rooms. We show the local-part of the Matrix ID
+            // (everything before the first ':') to keep the label short.
+            if (!message.isMe && message.senderId.isNotBlank()) {
+                Text(
+                    text  = senderDisplayName(message.senderId),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                )
+            }
+
+            // Bubble itself — tappable only when FAILED (triggers retry)
             Box(
                 modifier = Modifier
                     .widthIn(max = 280.dp)
                     .background(bgColor, bubbleShape)
+                    .then(
+                        if (isFailed) Modifier.clickable(onClick = onRetry) else Modifier
+                    )
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Text(
-                    text = message.body,
+                    text  = message.body,
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-                    color = textColor
+                    color = if (isFailed) HaloCoral else textColor,
+                    modifier = Modifier.padding(
+                        end = if (isFailed) 24.dp else 0.dp  // leave room for the error icon
+                    )
+                )
+
+                // B3: Error icon inside the bubble for FAILED messages
+                if (isFailed) {
+                    Icon(
+                        imageVector        = Icons.Default.ErrorOutline,
+                        contentDescription = "Send failed — tap to retry",
+                        tint               = HaloCoral,
+                        modifier           = Modifier
+                            .size(18.dp)
+                            .align(Alignment.CenterEnd)
+                    )
+                }
+            }
+
+            // Timestamp / status row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text  = when {
+                        isFailed  -> "Failed · Tap to retry"
+                        isSending -> "Sending…"
+                        else      -> formatMsgTime(message.timestamp)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isFailed) HaloCoral else TextTertiary
                 )
             }
-            Text(
-                text = formatMsgTime(message.timestamp),
-                style = MaterialTheme.typography.labelSmall,
-                color = TextTertiary,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-            )
         }
     }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns a human-friendly label for a Matrix user ID.
+ *
+ * "@alice:matrix.org" → "alice"
+ * "alice"             → "alice"  (already short)
+ */
+private fun senderDisplayName(matrixUserId: String): String {
+    val localPart = matrixUserId
+        .removePrefix("@")
+        .substringBefore(":")
+    return localPart.ifBlank { matrixUserId }
 }
 
 private fun formatMsgTime(epochMs: Long): String {
     val diff = System.currentTimeMillis() - epochMs
     return when {
-        diff < 60_000 -> "now"
-        diff < 3_600_000 -> "${diff / 60_000}m"
-        diff < 86_400_000 -> SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(epochMs))
-        else -> SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(epochMs))
+        diff < 60_000      -> "now"
+        diff < 3_600_000   -> "${diff / 60_000}m"
+        diff < 86_400_000  -> SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(epochMs))
+        else               -> SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(epochMs))
     }
 }

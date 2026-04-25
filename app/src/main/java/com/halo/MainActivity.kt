@@ -13,8 +13,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.halo.data.matrix.MatrixClientManager
 import com.halo.data.matrix.SessionState
 import com.halo.data.matrix.SlidingSyncManager
 import com.halo.data.matrix.SyncEventProcessor
@@ -28,7 +30,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -38,10 +40,16 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var syncEventProcessor: SyncEventProcessor
 
     @Inject lateinit var matrixClientManager: MatrixClientManager
+    @Inject lateinit var mockDataSeeder: com.halo.data.util.MockDataSeeder
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Seed mock data for first launch
+        lifecycleScope.launch {
+            mockDataSeeder.seedIfNeeded()
+        }
 
         // Start event processing pipeline (waits until sync is actually running)
         syncEventProcessor.startProcessing(lifecycleScope)
@@ -122,4 +130,3 @@ fun HaloApp(
         )
     }
 }
-

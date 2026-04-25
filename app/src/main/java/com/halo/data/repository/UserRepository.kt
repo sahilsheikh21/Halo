@@ -146,7 +146,7 @@ class UserRepository @Inject constructor(
         return UserProfile(
             userId = userId,
             displayName = displayName,
-            avatarUrl = avatarMxc, // TODO: resolve mxc to http
+            avatarUrl = matrixClientManager.resolveMxc(avatarMxc),
             bio = bio,
             feedRoomId = feedRoomId,
             isFollowing = isFollowing,

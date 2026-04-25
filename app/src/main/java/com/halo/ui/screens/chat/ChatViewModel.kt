@@ -3,6 +3,7 @@ package com.halo.ui.screens.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.halo.data.repository.ChatRepository
+import com.halo.domain.model.ChatMessage
 import com.halo.domain.model.ChatRoom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +29,19 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(roomId: String, text: String) {
         viewModelScope.launch {
             chatRepository.sendMessage(roomId, text)
+        }
+    }
+
+    /**
+     * B3: Retries a message that previously failed to send.
+     *
+     * Delegates to [ChatRepository.retryMessage] which deletes the FAILED
+     * placeholder row and re-submits the body as a fresh [sendMessage] call,
+     * giving the user a new SENDING → SENT / FAILED cycle.
+     */
+    fun retryMessage(roomId: String, messageId: String, body: String) {
+        viewModelScope.launch {
+            chatRepository.retryMessage(roomId, messageId, body)
         }
     }
 }

@@ -5,8 +5,6 @@ build/
 *.class
 *.jar
 *.aar
-*.md
-
 # Android Studio generated files
 .idea/
 *.iml
@@ -23,3 +21,10 @@ app/build/generated/
 # OS
 .DS_Store
 Thumbs.db
+
+# Ignored temps
+sdk_temp/
+sdk_temp.zip
+event_item.txt
+halo_audit_plan.md
+halo_bug_audit.md

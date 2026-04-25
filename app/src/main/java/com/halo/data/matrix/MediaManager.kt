@@ -38,8 +38,7 @@ class MediaManager @Inject constructor(
     ): Result<String> = withContext(ioDispatcher) {
         val client = matrixClientManager.getClient()
         if (client == null) {
-            // Not authenticated — return a local placeholder so UI isn't blocked
-            return@withContext Result.success("mxc://localhost/${System.currentTimeMillis()}")
+            return@withContext Result.failure(Exception("Not authenticated"))
         }
 
         return@withContext try {
@@ -54,8 +53,7 @@ class MediaManager @Inject constructor(
             val mxcUri = client.uploadMedia(mimeType, bytes, null)
             Result.success(mxcUri)
         } catch (e: Exception) {
-            // Network failure, auth expired, etc. — store locally with placeholder
-            Result.success("mxc://localhost/${System.currentTimeMillis()}")
+            Result.failure(e)
         }
     }
 

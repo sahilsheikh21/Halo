@@ -24,7 +24,7 @@ class FeedRepository @Inject constructor(
                     eventId = entity.eventId,
                     authorId = entity.authorId,
                     authorName = author?.displayName ?: entity.authorId,
-                    authorAvatarUrl = author?.avatarMxc,
+                    authorAvatarUrl = matrixClientManager.resolveMxc(author?.avatarMxc),
                     caption = entity.caption,
                     mediaUrls = parseMedia(entity.mediaJson),
                     locationName = parseLocation(entity.locationJson),
@@ -47,7 +47,7 @@ class FeedRepository @Inject constructor(
                     eventId = entity.eventId,
                     authorId = entity.authorId,
                     authorName = author?.displayName ?: entity.authorId,
-                    authorAvatarUrl = author?.avatarMxc,
+                    authorAvatarUrl = matrixClientManager.resolveMxc(author?.avatarMxc),
                     caption = entity.caption,
                     mediaUrls = parseMedia(entity.mediaJson),
                     locationName = parseLocation(entity.locationJson),
@@ -66,12 +66,12 @@ class FeedRepository @Inject constructor(
             val list = kotlinx.serialization.json.Json.decodeFromString<List<com.halo.data.matrix.events.PostMedia>>(json)
             list.map {
                 com.halo.domain.model.MediaItem(
-                    url = it.mxcUri, // TODO: resolve mxc to http url
+                    url = matrixClientManager.resolveMxc(it.mxcUri) ?: it.mxcUri,
                     mxcUri = it.mxcUri,
                     mimeType = it.mimeType,
                     width = it.width,
                     height = it.height,
-                    thumbnailUrl = it.thumbnailMxc,
+                    thumbnailUrl = matrixClientManager.resolveMxc(it.thumbnailMxc),
                     blurhash = it.blurhash
                 )
             }
@@ -121,10 +121,11 @@ class FeedRepository @Inject constructor(
     ) {
         // TODO: Send com.halo.post event via Matrix SDK
 
+        val userId = matrixClientManager.getCurrentSession()?.userId ?: "@me:localhost"
         val entity = com.halo.data.local.entity.PostEntity(
             eventId = "local_${System.currentTimeMillis()}",
             feedRoomId = "local_feed",
-            authorId = "@me:localhost", // Placeholder until auth is wired
+            authorId = userId,
             caption = caption,
             mediaJson = kotlinx.serialization.json.Json.encodeToString(
                 listOf(

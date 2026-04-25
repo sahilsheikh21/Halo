@@ -256,6 +256,30 @@ class MatrixClientManager(
         return normalized
     }
 
+    /**
+     * Resolves an mxc:// URI into an https:// URL using the active session's homeserver.
+     */
+    fun resolveMxc(mxcUri: String?): String? {
+        if (mxcUri == null || !mxcUri.startsWith("mxc://")) return mxcUri
+        
+        val state = sessionState.value
+        val homeserverUrl = if (state is SessionState.LoggedIn) {
+            state.session.homeserverUrl
+        } else {
+            return mxcUri // Cannot resolve without active session
+        }
+        
+        // mxcUri format: mxc://server.name/mediaId
+        val parts = mxcUri.removePrefix("mxc://").split("/", limit = 2)
+        if (parts.size != 2) return mxcUri
+        
+        val serverName = parts[0]
+        val mediaId = parts[1]
+        
+        val normalizedHomeserver = homeserverUrl.removeSuffix("/")
+        return "$normalizedHomeserver/_matrix/media/v3/download/$serverName/$mediaId"
+    }
+
     companion object {
         private const val KEY_HOMESERVER    = "homeserver_url"
         private const val KEY_USER_ID       = "user_id"

@@ -1,5 +1,6 @@
 package com.halo.ui.navigation
 
+import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -181,7 +182,10 @@ fun HaloNavGraph(
             enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
             exitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
         ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            // B10: Decode the URL-encoded Matrix user ID (e.g. "%40alice%3Amatrix.org" → "@alice:matrix.org").
+            // Routes.createRoute() encodes with Uri.encode(); we reverse that here.
+            val rawUserId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            val userId = Uri.decode(rawUserId)
             ProfileScreen(
                 userId = userId,
                 onBackClick = { navController.popBackStack() },
@@ -198,7 +202,9 @@ fun HaloNavGraph(
             enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
             exitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
         ) { backStackEntry ->
-            val roomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
+            // B10: Decode the URL-encoded Matrix room ID (e.g. "%21abc123%3Amatrix.org" → "!abc123:matrix.org").
+            val rawRoomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
+            val roomId = Uri.decode(rawRoomId)
             ChatScreen(
                 roomId = roomId,
                 onBackClick = { navController.popBackStack() }
@@ -212,7 +218,9 @@ fun HaloNavGraph(
             enterTransition = { slideInVertically(initialOffsetY = { it }) + fadeIn() },
             exitTransition = { slideOutVertically(targetOffsetY = { it }) + fadeOut() }
         ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            // B10: Decode the URL-encoded user ID.
+            val rawUserId = backStackEntry.arguments?.getString("userId") ?: return@composable
+            val userId = Uri.decode(rawUserId)
             StoryViewerScreen(
                 userId = userId,
                 onClose = { navController.popBackStack() }

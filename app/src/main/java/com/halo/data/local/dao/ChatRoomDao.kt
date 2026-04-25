@@ -21,6 +21,14 @@ interface ChatRoomDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChatRooms(chatRooms: List<ChatRoomEntity>)
 
+    /**
+     * Inserts rooms without overwriting existing records.
+     * Used by [refreshChatRooms] so that lastMessage / unreadCount
+     * set by incoming sync events are never erased.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertChatRoomsIgnore(chatRooms: List<ChatRoomEntity>)
+
     @Query("DELETE FROM chat_rooms WHERE roomId = :roomId")
     suspend fun deleteChatRoom(roomId: String)
 

@@ -16,10 +16,10 @@ data class ChatRoomEntity(
     val membersJoined: String // Stored as comma-separated string for simplicity
 )
 
-fun ChatRoomEntity.toDomain() = ChatRoom(
+fun ChatRoomEntity.toDomain(matrixClientManager: com.halo.data.matrix.MatrixClientManager) = ChatRoom(
     roomId = roomId,
     name = name,
-    avatarUrl = avatarUrl,
+    avatarUrl = matrixClientManager.resolveMxc(avatarUrl),
     lastMessage = lastMessage,
     lastMessageAt = lastMessageAt,
     unreadCount = unreadCount,
