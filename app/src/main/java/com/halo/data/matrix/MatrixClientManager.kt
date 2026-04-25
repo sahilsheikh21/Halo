@@ -31,7 +31,7 @@ import javax.inject.Singleton
  *  - Providing the active [Client] to other managers (e.g. [SlidingSyncManager])
  */
 @Singleton
-class MatrixClientManager @Inject constructor(
+class MatrixClientManager(
     private val context: Context,
     private val applicationScope: CoroutineScope,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher

@@ -25,9 +25,13 @@ class ProfileViewModel @Inject constructor(
     private val _followState = MutableStateFlow<UiState<Unit>?>(null)
     val followState: StateFlow<UiState<Unit>?> = _followState.asStateFlow()
 
-    init {
+    fun loadUser(userId: String) {
         viewModelScope.launch {
-            userRepository.refreshUsers()
+            // Check if user exists in DB first (observeUser will handle the UI update)
+            val existing = userRepository.getUserProfile(userId)
+            if (existing == null) {
+                userRepository.fetchAndCacheUser(userId)
+            }
         }
     }
 

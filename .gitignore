@@ -5,6 +5,7 @@ build/
 *.class
 *.jar
 *.aar
+*.md
 
 # Android Studio generated files
 .idea/

@@ -64,12 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class ChatMessage(
-    val id: String,
-    val body: String,
-    val isMe: Boolean,
-    val timestamp: Long
-)
+import com.halo.domain.model.ChatMessage
 
 @Composable
 fun ChatScreen(

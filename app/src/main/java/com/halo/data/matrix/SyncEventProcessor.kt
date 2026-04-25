@@ -9,6 +9,11 @@ import com.halo.data.local.entity.StoryEntity
 import com.halo.data.matrix.events.HaloPost
 import com.halo.data.matrix.events.HaloStory
 import com.halo.data.repository.ChatRepository
+import org.matrix.rustcomponents.sdk.EventTimelineItem
+import org.matrix.rustcomponents.sdk.EventOrTransactionId
+import org.matrix.rustcomponents.sdk.TimelineListener
+import org.matrix.rustcomponents.sdk.TimelineDiff
+import org.matrix.rustcomponents.sdk.TimelineItem
 import com.halo.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +42,7 @@ import javax.inject.Singleton
 @Singleton
 class SyncEventProcessor @Inject constructor(
     private val slidingSyncManager: SlidingSyncManager,
+    private val matrixClientManager: MatrixClientManager,
     private val chatRepository: ChatRepository,
     private val messageDao: MessageDao,
     private val postDao: PostDao,
@@ -45,7 +51,7 @@ class SyncEventProcessor @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-    private val activeListeners = mutableSetOf<String>()
+    private val activeListeners = java.util.concurrent.ConcurrentHashMap<String, org.matrix.rustcomponents.sdk.TaskHandle>()
 
     /**
      * Start the sync event processing pipeline.
@@ -55,27 +61,30 @@ class SyncEventProcessor @Inject constructor(
             slidingSyncManager.syncState.collect { state ->
                 if (state is SyncState.Syncing) {
                     attachTimelineListeners(scope)
+                } else if (state is SyncState.Idle || state is SyncState.Error) {
+                    clearListeners()
                 }
             }
         }
     }
 
+    private fun clearListeners() {
+        activeListeners.values.forEach { it.cancel() }
+        activeListeners.clear()
+    }
+
     private suspend fun attachTimelineListeners(scope: CoroutineScope) {
-        val client = slidingSyncManager.getSyncService()?.roomListService()?.allRooms() ?: return
-        // In a real app we'd observe the room list. For remediation, we'll pull once and attach.
-        val entries = client.entries()
-        // entries might be filtered/limited. 
-        // Better to use client.rooms() if available on the main Client.
-        val sdkClient = slidingSyncManager.matrixClientManager.getClient() ?: return
+        // Better to use rooms() on the main Client.
+        val sdkClient = matrixClientManager.getClient() ?: return
         sdkClient.rooms().forEach { room ->
             val roomId = room.id()
-            if (activeListeners.contains(roomId)) return@forEach
-            activeListeners.add(roomId)
+            if (activeListeners.containsKey(roomId)) return@forEach
 
             scope.launch(ioDispatcher) {
                 try {
                     val timeline = room.timeline()
-                    timeline.addListener(HaloTimelineListener(roomId, this@SyncEventProcessor, scope))
+                    val handle = timeline.addListener(HaloTimelineListener(roomId, this@SyncEventProcessor, scope))
+                    activeListeners[roomId] = handle
                 } catch (e: Exception) {
                     activeListeners.remove(roomId)
                 }
@@ -176,33 +185,39 @@ private class HaloTimelineListener(
 ) : org.matrix.rustcomponents.sdk.TimelineListener {
     override fun onUpdate(diff: List<org.matrix.rustcomponents.sdk.TimelineDiff>) {
         diff.forEach { d ->
-            val append = d.append() ?: return@forEach
-            append.forEach { item ->
-                val event = item.asEvent() ?: return@forEach
-                val msg = event.content().asRoomMessage() ?: run {
-                    // Check for Halo custom events
-                    val type = event.eventType()
-                    val sender = event.sender()
-                    val eventId = event.eventId() ?: "remote_${System.currentTimeMillis()}"
-                    val json = event.content().toString() // Raw JSON
+            val items = when (d) {
+                is org.matrix.rustcomponents.sdk.TimelineDiff.Append -> d.values
+                is org.matrix.rustcomponents.sdk.TimelineDiff.PushBack -> listOf(d.value)
+                is org.matrix.rustcomponents.sdk.TimelineDiff.PushFront -> listOf(d.value)
+                is org.matrix.rustcomponents.sdk.TimelineDiff.Insert -> listOf(d.value)
+                is org.matrix.rustcomponents.sdk.TimelineDiff.Set -> listOf(d.value)
+                else -> emptyList()
+            }
 
-                    scope.launch {
-                        when (type) {
-                            "com.halo.post" -> processor.processHaloPost(eventId, sender, roomId, json)
-                            "com.halo.story" -> processor.processHaloStory(eventId, sender, roomId, json)
+            items.forEach { item ->
+                val event = item.asEvent() ?: return@forEach
+                val eventId = item.uniqueId().id
+                val senderId = event.sender
+                val timestamp = System.currentTimeMillis() // Fallback until timestamp mapping is fixed
+
+                val content = event.content
+                when (content) {
+                    is org.matrix.rustcomponents.sdk.TimelineItemContent.MsgLike -> {
+                        val kind = content.content.kind
+                        if (kind is org.matrix.rustcomponents.sdk.MsgLikeKind.Message) {
+                            val body = kind.content.body
+                            scope.launch {
+                                processor.processRoomMessage(roomId, eventId, senderId, body, timestamp)
+                            }
                         }
                     }
-                    return@forEach
-                }
-
-                // Process standard message
-                val body = msg.body()
-                val senderId = event.sender()
-                val eventId = event.eventId() ?: "remote_${System.currentTimeMillis()}"
-                val timestamp = event.timestamp().toLong()
-
-                scope.launch {
-                    processor.processRoomMessage(roomId, eventId, senderId, body, timestamp)
+                    else -> {
+                        // Handle other types or custom Halo events via raw string if needed
+                        val json = content.toString()
+                        scope.launch {
+                            processor.processHaloPost(eventId, senderId, roomId, json)
+                        }
+                    }
                 }
             }
         }

@@ -28,6 +28,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import androidx.lifecycle.lifecycleScope
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -36,18 +37,21 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var slidingSyncManager: SlidingSyncManager
     @Inject lateinit var syncEventProcessor: SyncEventProcessor
 
-    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    @Inject lateinit var matrixClientManager: MatrixClientManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         // Start event processing pipeline (waits until sync is actually running)
-        syncEventProcessor.startProcessing(activityScope)
+        syncEventProcessor.startProcessing(lifecycleScope)
 
         setContent {
             HaloTheme {
-                HaloApp(slidingSyncManager = slidingSyncManager)
+                HaloApp(
+                    slidingSyncManager = slidingSyncManager,
+                    matrixClientManager = matrixClientManager
+                )
             }
         }
     }
@@ -59,10 +63,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HaloApp(slidingSyncManager: SlidingSyncManager) {
+fun HaloApp(
+    slidingSyncManager: SlidingSyncManager,
+    matrixClientManager: MatrixClientManager
+) {
     val navController = rememberNavController()
-    val authViewModel: AuthViewModel = hiltViewModel()
-    val sessionState by authViewModel.sessionState.collectAsState()
+    val sessionState by matrixClientManager.sessionState.collectAsState()
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route

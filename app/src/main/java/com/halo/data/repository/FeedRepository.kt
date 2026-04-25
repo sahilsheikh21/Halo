@@ -16,11 +16,15 @@ class FeedRepository @Inject constructor(
     private val matrixClientManager: MatrixClientManager
 ) {
     fun getFeedPosts(limit: Int = 20, offset: Int = 0): Flow<List<Post>> {
-        return postDao.getFeedPosts(limit, offset).map { entities ->
-            entities.map { entity ->
+        return postDao.getFeedPosts(limit, offset).map { items ->
+            items.map { item ->
+                val entity = item.post
+                val author = item.author
                 Post(
                     eventId = entity.eventId,
                     authorId = entity.authorId,
+                    authorName = author?.displayName ?: entity.authorId,
+                    authorAvatarUrl = author?.avatarMxc,
                     caption = entity.caption,
                     mediaUrls = parseMedia(entity.mediaJson),
                     locationName = parseLocation(entity.locationJson),
@@ -35,11 +39,15 @@ class FeedRepository @Inject constructor(
     }
 
     fun getPostsByAuthor(authorId: String): Flow<List<Post>> {
-        return postDao.getPostsByAuthor(authorId).map { entities ->
-            entities.map { entity ->
+        return postDao.getPostsByAuthor(authorId).map { items ->
+            items.map { item ->
+                val entity = item.post
+                val author = item.author
                 Post(
                     eventId = entity.eventId,
                     authorId = entity.authorId,
+                    authorName = author?.displayName ?: entity.authorId,
+                    authorAvatarUrl = author?.avatarMxc,
                     caption = entity.caption,
                     mediaUrls = parseMedia(entity.mediaJson),
                     locationName = parseLocation(entity.locationJson),

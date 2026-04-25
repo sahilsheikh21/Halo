@@ -20,6 +20,25 @@ class UserRepository @Inject constructor(
     suspend fun refreshUsers() {
         // TODO: Sync following users from Matrix SDK and update local DB
     }
+
+    suspend fun fetchAndCacheUser(userId: String): Result<UserProfile> = withContext(Dispatchers.IO) {
+        val client = matrixClientManager.getClient()
+            ?: return@withContext Result.failure(Exception("Not authenticated"))
+
+        try {
+            val profile = client.getProfile(userId)
+            val entity = UserEntity(
+                userId = userId,
+                displayName = profile.displayName ?: "",
+                avatarMxc = profile.avatarUrl,
+                cachedAt = System.currentTimeMillis()
+            )
+            userDao.insertUser(entity)
+            Result.success(entity.toDomainModel())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     fun observeUser(userId: String): Flow<UserProfile?> {
         return userDao.observeUser(userId).map { entity ->
             entity?.toDomainModel()

@@ -71,6 +71,10 @@ fun ProfileScreen(
     val isFollowing = userProfile?.isFollowing == true
     val userPosts by viewModel.getPostsForUser(userId).collectAsState(initial = emptyList())
 
+    androidx.compose.runtime.LaunchedEffect(userId) {
+        viewModel.loadUser(userId)
+    }
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         contentPadding = PaddingValues(bottom = 80.dp),

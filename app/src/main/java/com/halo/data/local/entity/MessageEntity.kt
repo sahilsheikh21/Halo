@@ -4,7 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.halo.ui.screens.chat.ChatMessage
+import com.halo.domain.model.ChatMessage
 
 @Entity(
     tableName = "messages",

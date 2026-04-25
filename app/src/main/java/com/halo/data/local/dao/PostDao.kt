@@ -6,6 +6,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.halo.data.local.entity.PostEntity
+import com.halo.data.local.pojo.PostWithAuthor
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -14,11 +16,13 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE feed_room_id = :roomId ORDER BY created_at DESC")
     fun getPostsByRoom(roomId: String): Flow<List<PostEntity>>
 
+    @Transaction
     @Query("SELECT * FROM posts ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
-    fun getFeedPosts(limit: Int = 20, offset: Int = 0): Flow<List<PostEntity>>
+    fun getFeedPosts(limit: Int = 20, offset: Int = 0): Flow<List<PostWithAuthor>>
 
+    @Transaction
     @Query("SELECT * FROM posts WHERE author_id = :authorId ORDER BY created_at DESC")
-    fun getPostsByAuthor(authorId: String): Flow<List<PostEntity>>
+    fun getPostsByAuthor(authorId: String): Flow<List<PostWithAuthor>>
 
     @Query("SELECT * FROM posts WHERE event_id = :eventId")
     suspend fun getPostById(eventId: String): PostEntity?

@@ -6,7 +6,7 @@ import com.halo.data.local.entity.MessageEntity
 import com.halo.data.local.entity.toDomain
 import com.halo.data.matrix.MatrixClientManager
 import com.halo.domain.model.ChatRoom
-import com.halo.ui.screens.chat.ChatMessage
+import com.halo.domain.model.ChatMessage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -97,7 +97,8 @@ class ChatRepository @Inject constructor(
         val client = matrixClientManager.getClient() ?: return
         try {
             val room = client.getRoom(roomId) ?: return
-            room.timeline().sendMessage(org.matrix.rustcomponents.sdk.RoomMessageEventContentWithoutRelation.text(body))
+            val content = org.matrix.rustcomponents.sdk.messageEventContentFromMarkdown(body)
+            room.timeline().send(content)
         } catch (e: Exception) {
             // Logic to mark message as failed can be added here
         }
@@ -119,10 +120,18 @@ class ChatRepository @Inject constructor(
         return try {
             val params = org.matrix.rustcomponents.sdk.CreateRoomParameters(
                 name = null,
+                topic = null,
                 isDirect = true,
-                visibility = org.matrix.rustcomponents.sdk.RoomVisibility.PRIVATE,
+                isEncrypted = true,
+                visibility = org.matrix.rustcomponents.sdk.RoomVisibility.Private,
                 preset = org.matrix.rustcomponents.sdk.RoomPreset.PRIVATE_CHAT,
-                invite = listOf(userId)
+                invite = listOf(userId),
+                avatar = null,
+                powerLevelContentOverride = null,
+                joinRuleOverride = null,
+                historyVisibilityOverride = null,
+                canonicalAlias = null,
+                isSpace = false
             )
             val roomId = client.createRoom(params)
             
@@ -131,6 +140,10 @@ class ChatRepository @Inject constructor(
                 com.halo.data.local.entity.ChatRoomEntity(
                     roomId = roomId,
                     name = userId, // Fallback until profile syncs
+                    avatarUrl = null,
+                    lastMessage = null,
+                    lastMessageAt = 0L,
+                    unreadCount = 0,
                     isDm = true,
                     membersJoined = userId
                 )
