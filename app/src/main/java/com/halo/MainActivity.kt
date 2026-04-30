@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // Start event processing pipeline (waits until sync is actually running)
-        syncEventProcessor.startProcessing(lifecycleScope)
+        syncEventProcessor.startProcessing()
 
         setContent {
             HaloTheme {

@@ -32,6 +32,22 @@ interface ChatRoomDao {
     @Query("DELETE FROM chat_rooms WHERE roomId = :roomId")
     suspend fun deleteChatRoom(roomId: String)
 
+    /**
+     * Find an existing DM room with a specific user.
+     * Checks the membersJoined column for a match.
+     */
+    @Query("SELECT * FROM chat_rooms WHERE isDm = 1 AND membersJoined LIKE '%' || :userId || '%' LIMIT 1")
+    suspend fun findDmWithUser(userId: String): ChatRoomEntity?
+
+    @Query("SELECT * FROM chat_rooms WHERE roomId = :roomId LIMIT 1")
+    suspend fun findByRoomId(roomId: String): ChatRoomEntity?
+
+    /**
+     * Non-flow snapshot of all chat rooms — used for one-shot lookups.
+     */
+    @Query("SELECT * FROM chat_rooms ORDER BY lastMessageAt DESC")
+    suspend fun getAllChatRoomsOnce(): List<ChatRoomEntity>
+
     @Query("DELETE FROM chat_rooms")
     suspend fun deleteAll()
 }

@@ -25,7 +25,7 @@ object DatabaseModule {
             HaloDatabase::class.java,
             "halo_database"
         )
-            .fallbackToDestructiveMigration()
+            .addMigrations(HaloDatabase.MIGRATION_4_5)
             .build()
     }
 
@@ -43,4 +43,12 @@ object DatabaseModule {
 
     @Provides
     fun provideMessageDao(database: HaloDatabase): com.halo.data.local.dao.MessageDao = database.messageDao()
+
+    @Provides
+    fun provideChatRoomMemberDao(database: HaloDatabase): com.halo.data.local.dao.ChatRoomMemberDao =
+        database.chatRoomMemberDao()
+
+    @Provides
+    fun provideProcessedEventDao(database: HaloDatabase): com.halo.data.local.dao.ProcessedEventDao =
+        database.processedEventDao()
 }

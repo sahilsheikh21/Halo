@@ -1,19 +1,24 @@
 package com.halo.data.matrix
 
 import android.util.Log
+import com.halo.data.local.dao.ProcessedEventDao
 import com.halo.data.local.dao.MessageDao
 import com.halo.data.local.dao.PostDao
 import com.halo.data.local.dao.StoryDao
 import com.halo.data.local.dao.UserDao
 import com.halo.data.local.entity.PostEntity
+import com.halo.data.local.entity.ProcessedEventEntity
 import com.halo.data.local.entity.StoryEntity
 import com.halo.data.matrix.events.HaloPost
 import com.halo.data.matrix.events.HaloStory
 import com.halo.data.repository.ChatRepository
+import com.halo.di.ApplicationScope
 import com.halo.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -32,6 +37,7 @@ private const val TAG = "SyncEventProcessor"
  * where rooms are available a few seconds later.
  */
 private const val LISTENER_RETRY_DELAY_MS = 3_000L
+private const val INVITE_RECONCILE_INTERVAL_MS = 5_000L
 
 @Singleton
 class SyncEventProcessor @Inject constructor(
@@ -42,6 +48,8 @@ class SyncEventProcessor @Inject constructor(
     private val postDao: PostDao,
     private val storyDao: StoryDao,
     private val userDao: UserDao,
+    private val processedEventDao: ProcessedEventDao,
+    @ApplicationScope private val appScope: CoroutineScope,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -63,29 +71,44 @@ class SyncEventProcessor @Inject constructor(
      */
     private val seenEventIds: MutableSet<String> =
         Collections.newSetFromMap(ConcurrentHashMap())
+    private var inviteReconcileJob: Job? = null
+    private val attachInProgress = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    @Volatile private var started = false
 
     // ─────────────────────────────────────────────────────────────────────────
     // Public API
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun startProcessing(scope: CoroutineScope) {
-        scope.launch(ioDispatcher) {
+    fun startProcessing() {
+        if (started) return
+        started = true
+        appScope.launch(ioDispatcher) {
             slidingSyncManager.syncState.collect { state ->
                 when (state) {
                     is SyncState.Syncing -> {
-                        attachTimelineListeners(scope)
+                        attachTimelineListeners()
+
+                        // BUG-2 FIX: Accept pending room invites so DMs from
+                        // Element/other clients appear in the Halo chat list.
+                        reconcileInvitesAndListeners()
+                        ensureInviteReconcileLoop()
 
                         // B11: rooms() may return an empty list on the very first sync
                         // because the SDK hasn't finished populating its room store yet.
                         // Scheduling a second pass a few seconds later catches all rooms
                         // that were missed in the first pass without re-adding duplicates
                         // (attachTimelineListeners is idempotent for rooms already tracked).
-                        scope.launch(ioDispatcher) {
+                        appScope.launch(ioDispatcher) {
                             delay(LISTENER_RETRY_DELAY_MS)
-                            attachTimelineListeners(scope)
+                            attachTimelineListeners()
+                            reconcileInvitesAndListeners()
                         }
                     }
-                    is SyncState.Idle, is SyncState.Error -> clearListeners()
+                    is SyncState.Idle, is SyncState.Error -> {
+                        inviteReconcileJob?.cancel()
+                        inviteReconcileJob = null
+                        clearListeners()
+                    }
                     else -> Unit
                 }
             }
@@ -101,11 +124,34 @@ class SyncEventProcessor @Inject constructor(
         activeListeners.clear()
     }
 
+    private fun ensureInviteReconcileLoop() {
+        if (inviteReconcileJob?.isActive == true) return
+        inviteReconcileJob = appScope.launch(ioDispatcher) {
+            while (isActive) {
+                reconcileInvitesAndListeners()
+                delay(INVITE_RECONCILE_INTERVAL_MS)
+            }
+        }
+    }
+
+    private suspend fun reconcileInvitesAndListeners() {
+        try {
+            val joinedRooms = chatRepository.acceptPendingInvites()
+            if (joinedRooms.isNotEmpty()) {
+                Log.d(TAG, "Auto-accepted ${joinedRooms.size} DM invite(s)")
+                chatRepository.refreshChatRooms()
+                attachTimelineListeners()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to process pending invites", e)
+        }
+    }
+
     /**
      * Attaches a [HaloTimelineListener] to every room that doesn't already have one.
      * Safe to call multiple times — existing listeners are never replaced.
      */
-    private suspend fun attachTimelineListeners(scope: CoroutineScope) {
+    private suspend fun attachTimelineListeners() {
         val sdkClient = matrixClientManager.getClient() ?: return
         val rooms = sdkClient.rooms()
 
@@ -116,19 +162,21 @@ class SyncEventProcessor @Inject constructor(
 
         rooms.forEach { room ->
             val roomId = room.id()
-            if (activeListeners.containsKey(roomId)) return@forEach
+            if (activeListeners.containsKey(roomId) || !attachInProgress.add(roomId)) return@forEach
 
-            scope.launch(ioDispatcher) {
+            appScope.launch(ioDispatcher) {
                 try {
                     val timeline = room.timeline()
                     val handle = timeline.addListener(
-                        HaloTimelineListener(roomId, this@SyncEventProcessor, scope)
+                        HaloTimelineListener(roomId, this@SyncEventProcessor)
                     )
                     activeListeners[roomId] = handle
                     Log.d(TAG, "Attached timeline listener for room $roomId")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to attach listener for room $roomId", e)
                     activeListeners.remove(roomId)
+                } finally {
+                    attachInProgress.remove(roomId)
                 }
             }
         }
@@ -140,6 +188,13 @@ class SyncEventProcessor @Inject constructor(
      *         `false` if it was already seen and must be skipped.
      */
     fun markEventSeen(eventId: String): Boolean = seenEventIds.add(eventId)
+    private suspend fun markEventSeenPersisted(eventKey: String): Boolean {
+        if (!seenEventIds.add(eventKey)) return false
+        val inserted = processedEventDao.insertIfAbsent(
+            ProcessedEventEntity(eventKey = eventKey, processedAt = System.currentTimeMillis())
+        )
+        return inserted != -1L
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Event processors (called from HaloTimelineListener)
@@ -157,8 +212,9 @@ class SyncEventProcessor @Inject constructor(
         senderId: String,
         body: String,
         timestamp: Long
-    ) {
+    ): Boolean {
         chatRepository.appendIncomingMessage(roomId, eventId, senderId, body, timestamp)
+        return true
     }
 
     suspend fun processHaloPost(
@@ -166,7 +222,7 @@ class SyncEventProcessor @Inject constructor(
         sender: String,
         roomId: String,
         eventJson: String
-    ) {
+    ): Boolean {
         try {
             val haloPost   = json.decodeFromString<HaloPost>(eventJson)
             val mediaJson  = json.encodeToString(haloPost.media)
@@ -187,8 +243,10 @@ class SyncEventProcessor @Inject constructor(
                 cachedAt     = System.currentTimeMillis()
             )
             postDao.insertPosts(listOf(entity))
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode HaloPost (eventId=$eventId)", e)
+            return false
         }
     }
 
@@ -197,10 +255,10 @@ class SyncEventProcessor @Inject constructor(
         sender: String,
         roomId: String,
         eventJson: String
-    ) {
+    ): Boolean {
         try {
             val haloStory = json.decodeFromString<HaloStory>(eventJson)
-            if (HaloStory.isExpired(haloStory.createdAt)) return
+            if (HaloStory.isExpired(haloStory.createdAt)) return false
             val entity = StoryEntity(
                 eventId   = eventId,
                 feedRoomId = roomId,
@@ -209,13 +267,62 @@ class SyncEventProcessor @Inject constructor(
                 storyType = haloStory.storyType.name.lowercase(),
                 durationMs = haloStory.durationMs,
                 caption   = haloStory.caption,
+                thumbnailMxc = haloStory.thumbnailMxc,
+                blurhash = haloStory.blurhash,
                 createdAt = haloStory.createdAt,
                 isSeen    = false
             )
             storyDao.insertStories(listOf(entity))
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode HaloStory (eventId=$eventId)", e)
+            return false
         }
+    }
+
+    suspend fun processTimelineItem(roomId: String, item: org.matrix.rustcomponents.sdk.TimelineItem) {
+        val event = item.asEvent() ?: return
+        val senderId = event.sender
+        val timestamp = event.timestamp.toLong().takeIf { it > 0L } ?: System.currentTimeMillis()
+        val eventKey = buildDeterministicEventKey(roomId, senderId, timestamp, event.content.hashCode())
+        if (!markEventSeenPersisted(eventKey)) return
+
+        val processed = when (val content = event.content) {
+            is org.matrix.rustcomponents.sdk.TimelineItemContent.MsgLike -> {
+                val kind = content.content.kind
+                if (kind is org.matrix.rustcomponents.sdk.MsgLikeKind.Message) {
+                    val body = kind.content.body
+                    when {
+                        body.startsWith("HALO_POST:") -> processHaloPost(
+                            eventId = eventKey, sender = senderId, roomId = roomId, eventJson = body.removePrefix("HALO_POST:")
+                        )
+                        body.startsWith("HALO_STORY:") -> processHaloStory(
+                            eventId = eventKey, sender = senderId, roomId = roomId, eventJson = body.removePrefix("HALO_STORY:")
+                        )
+                        else -> processRoomMessage(roomId, eventKey, senderId, body, timestamp)
+                    }
+                } else false
+            }
+            else -> false
+        }
+        if (!processed) {
+            seenEventIds.remove(eventKey)
+        }
+    }
+
+    fun launchTimelineProcessing(roomId: String, item: org.matrix.rustcomponents.sdk.TimelineItem) {
+        appScope.launch(ioDispatcher) {
+            processTimelineItem(roomId, item)
+        }
+    }
+
+    companion object {
+        internal fun buildDeterministicEventKey(
+            roomId: String,
+            senderId: String,
+            timestamp: Long,
+            contentHash: Int
+        ): String = "$roomId|$senderId|$timestamp|$contentHash"
     }
 }
 
@@ -225,12 +332,11 @@ class SyncEventProcessor @Inject constructor(
 
 private class HaloTimelineListener(
     private val roomId: String,
-    private val processor: SyncEventProcessor,
-    private val scope: CoroutineScope
+    private val processor: SyncEventProcessor
 ) : org.matrix.rustcomponents.sdk.TimelineListener {
 
     override fun onUpdate(diff: List<org.matrix.rustcomponents.sdk.TimelineDiff>) {
-        diff.forEach { d ->
+        diff.forEach diffLoop@{ d ->
             val items = when (d) {
                 is org.matrix.rustcomponents.sdk.TimelineDiff.Append    -> d.values
                 is org.matrix.rustcomponents.sdk.TimelineDiff.PushBack  -> listOf(d.value)
@@ -240,65 +346,8 @@ private class HaloTimelineListener(
                 else -> emptyList()
             }
 
-            items.forEach { item ->
-                val event    = item.asEvent() ?: return@forEach
-
-                // B2: Use the SDK's internal unique ID as the stable event identifier.
-                // EventTimelineItem does not expose the raw Matrix event ID directly in
-                // SDK v26.03.31; item.uniqueId().id is the closest stable handle we have
-                // within a single sync session. The in-memory seenEventIds set below
-                // prevents replay duplicates within a process lifetime; Room's
-                // OnConflictStrategy.REPLACE is the safety net across process restarts.
-                val eventId  = item.uniqueId().id
-
-                // B2: Skip events we have already written to the DB.
-                // This prevents duplicate rows on sync restarts / timeline replays.
-                if (!processor.markEventSeen(eventId)) return@forEach
-
-                val senderId = event.sender
-
-                // B4: Use the origin server timestamp so that historical messages
-                // sort correctly and time labels ("3:42 PM") are accurate.
-                // Fall back to device clock only if the SDK returns zero or null.
-                val timestamp = event.timestamp.toLong().takeIf { it > 0L }
-                    ?: System.currentTimeMillis()
-
-                when (val content = event.content) {
-                    is org.matrix.rustcomponents.sdk.TimelineItemContent.MsgLike -> {
-                        val kind = content.content.kind
-                        if (kind is org.matrix.rustcomponents.sdk.MsgLikeKind.Message) {
-                            scope.launch {
-                                processor.processRoomMessage(
-                                    roomId    = roomId,
-                                    eventId   = eventId,
-                                    senderId  = senderId,
-                                    body      = kind.content.body,
-                                    timestamp = timestamp
-                                )
-                            }
-                        }
-                    }
-                    else -> {
-                        // B9: content.toString() produces a Kotlin debug string like
-                        // "MembershipChange(change=JOINED)" — it does NOT contain the
-                        // Matrix event type string "com.halo.story" / "com.halo.post".
-                        //
-                        // Custom Halo events (posts, stories) cannot be reliably routed
-                        // through the standard timeline listener in SDK v26.03.31 because
-                        // the raw event type is not exposed on non-message timeline items.
-                        //
-                        // TODO: Migrate to the Room state API or a raw event endpoint for
-                        //       custom com.halo.* events in a future SDK upgrade.
-                        //
-                        // For now we log the content class name so we can observe what
-                        // comes through during testing instead of silently discarding it.
-                        Log.d(
-                            "SyncEventProcessor",
-                            "Unhandled timeline content type in room $roomId: " +
-                                "${content::class.simpleName} (eventId=$eventId)"
-                        )
-                    }
-                }
+            items.forEach itemLoop@{ item ->
+                processor.launchTimelineProcessing(roomId, item)
             }
         }
     }

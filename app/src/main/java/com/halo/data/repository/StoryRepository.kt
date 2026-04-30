@@ -2,6 +2,8 @@ package com.halo.data.repository
 
 import com.halo.data.local.dao.StoryDao
 import com.halo.data.matrix.MatrixClientManager
+import com.halo.data.matrix.events.HaloStory
+import com.halo.data.matrix.events.StoryType
 import com.halo.domain.model.Story
 import com.halo.domain.model.StoryGroup
 import kotlinx.coroutines.delay
@@ -10,6 +12,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.matrix.rustcomponents.sdk.messageEventContentFromMarkdown
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +24,7 @@ class StoryRepository @Inject constructor(
     private val userDao: com.halo.data.local.dao.UserDao,
     private val matrixClientManager: MatrixClientManager
 ) {
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val tickerFlow = flow {
         while (true) {
             emit(System.currentTimeMillis())
@@ -78,23 +84,40 @@ class StoryRepository @Inject constructor(
     }
 
     suspend fun refreshStories() {
-        // TODO: Sync com.halo.story state events from followed rooms
+        cleanExpiredStories()
     }
-    suspend fun publishStory(mediaMxc: String) {
-        // TODO: Send com.halo.story state event via Matrix SDK
-        
+    suspend fun publishStory(mediaMxc: String): Result<Unit> {
         val userId = matrixClientManager.getCurrentSession()?.userId ?: "@me:localhost"
+        val now = System.currentTimeMillis()
+        val haloStory = HaloStory(
+            mediaMxc = mediaMxc,
+            createdAt = now,
+            storyType = StoryType.IMAGE
+        )
+        val typedJson = json.encodeToString(haloStory)
+        val payload = "HALO_STORY:$typedJson"
+        val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
+        val broadcastRoom = client.rooms().firstOrNull { room ->
+            runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false)
+        } ?: return Result.failure(Exception("No story-capable room available"))
+
+        runCatching {
+            broadcastRoom.sendRaw(HaloStory.EVENT_TYPE, typedJson)
+            broadcastRoom.timeline().send(messageEventContentFromMarkdown(payload))
+        }.getOrElse { return Result.failure(it) }
+
         val entity = com.halo.data.local.entity.StoryEntity(
-            eventId = "local_story_${System.currentTimeMillis()}",
-            feedRoomId = "local_feed",
+            eventId = "local_story_$now",
+            feedRoomId = broadcastRoom.id(),
             authorId = userId,
             mediaMxc = mediaMxc,
             storyType = "image",
             durationMs = 5000,
             caption = null,
-            createdAt = System.currentTimeMillis(),
+            createdAt = now,
             isSeen = true
         )
         storyDao.insertStories(listOf(entity))
+        return Result.success(Unit)
     }
 }

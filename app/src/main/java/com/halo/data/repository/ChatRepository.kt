@@ -2,17 +2,23 @@ package com.halo.data.repository
 
 import android.util.Log
 import com.halo.data.local.dao.ChatRoomDao
+import com.halo.data.local.dao.ChatRoomMemberDao
 import com.halo.data.local.dao.MessageDao
 import com.halo.data.local.entity.ChatRoomEntity
+import com.halo.data.local.entity.ChatRoomMemberEntity
 import com.halo.data.local.entity.MessageEntity
 import com.halo.data.local.entity.toDomain
 import com.halo.data.matrix.MatrixClientManager
 import com.halo.domain.model.ChatMessage
 import com.halo.domain.model.ChatRoom
 import com.halo.domain.model.MessageStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.matrix.rustcomponents.sdk.CreateRoomParameters
+import org.matrix.rustcomponents.sdk.Membership
 import org.matrix.rustcomponents.sdk.RoomPreset
 import org.matrix.rustcomponents.sdk.RoomVisibility
 import org.matrix.rustcomponents.sdk.messageEventContentFromMarkdown
@@ -28,8 +34,11 @@ private const val LOCAL_ECHO_WINDOW_MS = 10_000L
 class ChatRepository @Inject constructor(
     private val matrixClientManager: MatrixClientManager,
     private val chatRoomDao: ChatRoomDao,
+    private val chatRoomMemberDao: ChatRoomMemberDao,
     private val messageDao: MessageDao
 ) {
+    private val dmCreationLocks = mutableMapOf<String, Mutex>()
+
 
     // ─── Room list ────────────────────────────────────────────────────────────
 
@@ -45,27 +54,133 @@ class ChatRepository @Inject constructor(
      * refresh pass (which doesn't have that information).
      *
      * Only brand-new rooms (not yet in the DB) will be inserted.
+     *
+     * FIX: Now resolves display names instead of storing raw room IDs,
+     * and detects DM rooms properly.
      */
     suspend fun refreshChatRooms() {
         val client = matrixClientManager.getClient() ?: return
         val rooms = client.rooms()
+        val currentUserId = matrixClientManager.getCurrentSession()?.userId
+
         val entities = rooms.map { room ->
             val roomId = room.id()
-            // Room display name resolution is a future improvement; for now store the
-            // raw ID as a placeholder — it will not overwrite an existing richer record.
+
+            // Resolve a human-readable name for the room
+            val resolvedName = try {
+                room.displayName() ?: roomId
+            } catch (_: Exception) {
+                roomId
+            }
+
+            // Detect DMs
+            val isDm = try {
+                room.isDirect()
+            } catch (_: Exception) {
+                false
+            }
+
+            // Cache DM counterpart IDs so local reuse checks keep working after sync.
+            val membersStr = if (isDm) {
+                resolveDmMemberIds(roomId = roomId, fallbackRoom = room, currentUserId = currentUserId)
+            } else {
+                ""
+            }
+
             ChatRoomEntity(
                 roomId        = roomId,
-                name          = roomId,
-                avatarUrl     = null,
+                name          = resolvedName,
+                avatarUrl     = try { room.avatarUrl() } catch (_: Exception) { null },
                 lastMessage   = null,
                 lastMessageAt = 0L,
                 unreadCount   = 0,
-                isDm          = false,
-                membersJoined = ""
+                isDm          = isDm,
+                membersJoined = membersStr
             )
         }
-        // B8 fix: IGNORE strategy preserves existing metadata
-        chatRoomDao.insertChatRoomsIgnore(entities)
+        chatRoomDao.insertChatRooms(entities)
+        entities.filter { it.isDm }.forEach { room ->
+            upsertRoomMembers(room.roomId, room.membersJoined)
+        }
+    }
+
+    // ─── Invited rooms (BUG-2 fix) ───────────────────────────────────────────
+
+    /**
+     * Detects rooms where we have been invited but haven't joined yet,
+     * and auto-joins invites so incoming messages become visible immediately.
+     */
+    suspend fun acceptPendingInvites(): List<String> {
+        val client = matrixClientManager.getClient() ?: return emptyList()
+        val currentUserId = matrixClientManager.getCurrentSession()?.userId ?: return emptyList()
+        val joinedRoomIds = mutableListOf<String>()
+
+        try {
+            val rooms = client.rooms()
+            for (room in rooms) {
+                try {
+                    // Check if this room is in invited state
+                    val membership = room.membership()
+                    if (membership == Membership.INVITED) {
+                        val isSpace = try { room.isSpace() } catch (_: Exception) { false }
+                        if (isSpace) {
+                            continue
+                        }
+                        val roomId = room.id()
+                        Log.d(TAG, "Auto-accepting invite for room $roomId")
+
+                        // Join invite and verify that membership transitions to joined.
+                        room.join()
+                        var joined = false
+                        repeat(3) { attempt ->
+                            val postJoinMembership = runCatching { room.membership() }.getOrNull()
+                            if (postJoinMembership == Membership.JOINED) {
+                                joined = true
+                                return@repeat
+                            }
+                            Log.w(TAG, "Invite join pending for $roomId (attempt=${attempt + 1})")
+                            delay(400L)
+                        }
+                        if (!joined) {
+                            Log.w(TAG, "Invite join not confirmed for room $roomId")
+                        }
+                        joinedRoomIds.add(roomId)
+
+                        // Resolve name and add to local DB
+                        val resolvedName = try {
+                            room.displayName() ?: roomId
+                        } catch (_: Exception) { roomId }
+
+                        val isDm = try { room.isDirect() } catch (_: Exception) { false }
+                        val membersStr = resolveDmMemberIds(
+                            roomId = roomId,
+                            fallbackRoom = room,
+                            currentUserId = currentUserId
+                        )
+                        upsertRoomMembers(roomId, membersStr)
+
+                        chatRoomDao.insertChatRoom(
+                            ChatRoomEntity(
+                                roomId        = roomId,
+                                name          = resolvedName,
+                                avatarUrl     = try { room.avatarUrl() } catch (_: Exception) { null },
+                                lastMessage   = null,
+                                lastMessageAt = System.currentTimeMillis(),
+                                unreadCount   = 1,
+                                isDm          = isDm,
+                                membersJoined = membersStr
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to process room invite: ${room.id()}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to check for pending invites", e)
+        }
+
+        return joinedRoomIds
     }
 
     // ─── Timeline ─────────────────────────────────────────────────────────────
@@ -195,41 +310,137 @@ class ChatRepository @Inject constructor(
 
     // ─── Direct Messages ──────────────────────────────────────────────────────
 
+    /**
+     * BUG-1 FIX: Check for existing DM rooms before creating a new one.
+     * This prevents duplicate rooms every time the user taps "Message".
+     */
     suspend fun createDirectMessage(userId: String): Result<String> {
-        val client = matrixClientManager.getClient()
-            ?: return Result.failure(Exception("Not authenticated"))
+        val currentUserId = matrixClientManager.getCurrentSession()?.userId ?: return Result.failure(Exception("Not authenticated"))
+        val lockKey = listOf(currentUserId, userId).sorted().joinToString("|")
+        val mutex = synchronized(dmCreationLocks) { dmCreationLocks.getOrPut(lockKey) { Mutex() } }
+        return mutex.withLock {
+            createDirectMessageLocked(userId, currentUserId)
+        }
+    }
+
+    private suspend fun createDirectMessageLocked(userId: String, currentUserId: String): Result<String> {
+        val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
+        val existingLocal = chatRoomMemberDao.findDmRoomByMember(userId) ?: chatRoomDao.findDmWithUser(userId)
+        if (existingLocal != null) {
+            Log.d(TAG, "Reusing existing local DM room: ${existingLocal.roomId}")
+            return Result.success(existingLocal.roomId)
+        }
+
+        val existingServerRoomId = findExistingDirectRoomIdWithUser(userId)
+        if (existingServerRoomId != null) {
+            upsertDmSnapshotFromRoom(existingServerRoomId, userId, currentUserId)
+            Log.d(TAG, "Reusing existing server DM room: $existingServerRoomId")
+            return Result.success(existingServerRoomId)
+        }
+
         return try {
             val params = CreateRoomParameters(
-                name                      = null,
-                topic                     = null,
-                isDirect                  = true,
-                isEncrypted               = true,
-                visibility                = RoomVisibility.Private,
-                preset                    = RoomPreset.PRIVATE_CHAT,
-                invite                    = listOf(userId),
-                avatar                    = null,
+                name = null,
+                topic = null,
+                isDirect = true,
+                isEncrypted = true,
+                visibility = RoomVisibility.Private,
+                preset = RoomPreset.PRIVATE_CHAT,
+                invite = listOf(userId),
+                avatar = null,
                 powerLevelContentOverride = null,
-                joinRuleOverride          = null,
+                joinRuleOverride = null,
                 historyVisibilityOverride = null,
-                canonicalAlias            = null,
-                isSpace                   = false
+                canonicalAlias = null,
+                isSpace = false
             )
             val roomId = client.createRoom(params)
+            val displayName = try { client.getProfile(userId).displayName ?: userId } catch (_: Exception) { userId }
+            val avatarUrl = try { client.getProfile(userId).avatarUrl } catch (_: Exception) { null }
             chatRoomDao.insertChatRoom(
                 ChatRoomEntity(
-                    roomId        = roomId,
-                    name          = userId,
-                    avatarUrl     = null,
-                    lastMessage   = null,
+                    roomId = roomId,
+                    name = displayName,
+                    avatarUrl = avatarUrl,
+                    lastMessage = null,
                     lastMessageAt = 0L,
-                    unreadCount   = 0,
-                    isDm          = true,
+                    unreadCount = 0,
+                    isDm = true,
                     membersJoined = userId
                 )
             )
+            upsertRoomMembers(roomId, userId)
             Result.success(roomId)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private suspend fun findExistingDirectRoomIdWithUser(userId: String): String? {
+        val client = matrixClientManager.getClient() ?: return null
+        val rooms = client.rooms()
+        for (room in rooms) {
+            val isDm = try { room.isDirect() } catch (_: Exception) { false }
+            if (!isDm) continue
+
+            val isTargetMember = try {
+                room.member(userId)
+                true
+            } catch (_: Exception) {
+                false
+            }
+            if (isTargetMember) {
+                return room.id()
+            }
+        }
+        return null
+    }
+
+    private suspend fun upsertDmSnapshotFromRoom(
+        roomId: String,
+        targetUserId: String,
+        currentUserId: String?
+    ) {
+        val client = matrixClientManager.getClient() ?: return
+        val room = client.getRoom(roomId) ?: return
+        val existing = chatRoomDao.findByRoomId(roomId)
+        val name = try { room.displayName() ?: existing?.name ?: targetUserId } catch (_: Exception) { existing?.name ?: targetUserId }
+        val avatarUrl = try { room.avatarUrl() } catch (_: Exception) { existing?.avatarUrl }
+        val membersJoined = resolveDmMemberIds(roomId, room, currentUserId).ifBlank { targetUserId }
+
+        chatRoomDao.insertChatRoom(
+            ChatRoomEntity(
+                roomId = roomId,
+                name = name,
+                avatarUrl = avatarUrl,
+                lastMessage = existing?.lastMessage,
+                lastMessageAt = existing?.lastMessageAt ?: 0L,
+                unreadCount = existing?.unreadCount ?: 0,
+                isDm = true,
+                membersJoined = membersJoined
+            )
+        )
+        upsertRoomMembers(roomId, membersJoined)
+    }
+
+    private suspend fun resolveDmMemberIds(
+        roomId: String,
+        fallbackRoom: org.matrix.rustcomponents.sdk.Room? = null,
+        currentUserId: String?
+    ): String {
+        val room = fallbackRoom ?: matrixClientManager.getClient()?.getRoom(roomId) ?: return ""
+        val candidateIds = linkedSetOf<String>()
+        val heroes = try { room.heroes() } catch (_: Exception) { emptyList() }
+        heroes.mapNotNullTo(candidateIds) { it.userId }
+
+        val filtered = candidateIds.filter { it != currentUserId }
+        return filtered.joinToString(",")
+    }
+
+    private suspend fun upsertRoomMembers(roomId: String, membersJoined: String) {
+        val members = membersJoined.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        if (members.isEmpty()) return
+        chatRoomMemberDao.deleteMembersForRoom(roomId)
+        chatRoomMemberDao.insertMembers(members.map { ChatRoomMemberEntity(roomId = roomId, userId = it) })
     }
 }

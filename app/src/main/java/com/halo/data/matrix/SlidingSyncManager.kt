@@ -57,6 +57,7 @@ class SlidingSyncManager @Inject constructor(
             activeSyncService?.stop()
         } catch (_: Exception) {
         } finally {
+            activeSyncService = null
             _syncState.value = SyncState.Idle
         }
     }

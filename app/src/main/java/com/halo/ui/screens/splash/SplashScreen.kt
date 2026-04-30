@@ -17,6 +17,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,12 +54,14 @@ fun SplashScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     val sessionState by viewModel.sessionState.collectAsState()
+    var minDelayDone by remember { mutableStateOf(false) }
+    var routed by remember { mutableStateOf(false) }
 
     val scale        = remember { Animatable(0.4f) }
     val alpha        = remember { Animatable(0f) }
     val taglineAlpha = remember { Animatable(0f) }
 
-    // Kick off session restore + animation in parallel
+    // Kick off animation and minimum splash delay.
     LaunchedEffect(Unit) {
         // Logo scale-in
         launch {
@@ -82,12 +86,24 @@ fun SplashScreen(
             )
         }
 
-        // Minimum display time — give the session restore time to finish
         delay(1800)
+        minDelayDone = true
+    }
 
+    // Navigate reactively to avoid using stale captured session state.
+    LaunchedEffect(sessionState, minDelayDone, routed) {
+        if (!minDelayDone || routed) return@LaunchedEffect
         when (sessionState) {
-            is SessionState.LoggedIn -> onAlreadyLoggedIn()
-            else                     -> onNeedsLogin()
+            is SessionState.LoggedIn -> {
+                routed = true
+                onAlreadyLoggedIn()
+            }
+            is SessionState.NotLoggedIn,
+            is SessionState.Error -> {
+                routed = true
+                onNeedsLogin()
+            }
+            SessionState.Loading -> Unit
         }
     }
 

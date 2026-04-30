@@ -2,11 +2,15 @@ package com.halo.data.repository
 
 import com.halo.data.local.dao.PostDao
 import com.halo.data.matrix.MatrixClientManager
+import com.halo.data.matrix.events.HaloPost
+import com.halo.data.matrix.events.PostLocation
+import com.halo.data.matrix.events.PostMedia
 import com.halo.domain.model.Post
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.matrix.rustcomponents.sdk.messageEventContentFromMarkdown
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,6 +19,7 @@ class FeedRepository @Inject constructor(
     private val postDao: PostDao,
     private val matrixClientManager: MatrixClientManager
 ) {
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     fun getFeedPosts(limit: Int = 20, offset: Int = 0): Flow<List<Post>> {
         return postDao.getFeedPosts(limit, offset).map { items ->
             items.map { item ->
@@ -111,25 +116,53 @@ class FeedRepository @Inject constructor(
     }
 
     suspend fun refreshFeed() {
-        // TODO: Sync feed rooms via Sliding Sync, parse com.halo.post events
+        // Minimal safe refresh: prune old cache and rely on timeline processors to insert fresh events.
+        val cacheWindowMs = 7L * 24 * 60 * 60 * 1000
+        val threshold = System.currentTimeMillis() - cacheWindowMs
+        postDao.deleteOldCache(threshold)
     }
     suspend fun publishPost(
         caption: String,
         mediaMxc: String,
         mimeType: String,
         location: String?
-    ) {
-        // TODO: Send com.halo.post event via Matrix SDK
-
+    ): Result<Unit> {
         val userId = matrixClientManager.getCurrentSession()?.userId ?: "@me:localhost"
+        val now = System.currentTimeMillis()
+        val haloPost = HaloPost(
+            caption = caption,
+            media = listOf(
+                PostMedia(
+                    mxcUri = mediaMxc,
+                    mimeType = mimeType
+                )
+            ),
+            location = location?.takeIf { it.isNotBlank() }?.let { PostLocation(name = it) },
+            tags = emptyList(),
+            createdAt = now
+        )
+        val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
+        val broadcastRoom = client.rooms().firstOrNull { room ->
+            runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false)
+        } ?: return Result.failure(Exception("No feed-capable room available"))
+        val typedJson = json.encodeToString(haloPost)
+        val legacyPayload = "HALO_POST:$typedJson"
+
+        runCatching {
+            // Preferred path: typed custom event.
+            broadcastRoom.sendRaw(HaloPost.EVENT_TYPE, typedJson)
+            // Temporary compatibility path for legacy listeners.
+            broadcastRoom.timeline().send(messageEventContentFromMarkdown(legacyPayload))
+        }.getOrElse { return Result.failure(it) }
+
         val entity = com.halo.data.local.entity.PostEntity(
-            eventId = "local_${System.currentTimeMillis()}",
-            feedRoomId = "local_feed",
+            eventId = "local_$now",
+            feedRoomId = broadcastRoom.id(),
             authorId = userId,
             caption = caption,
             mediaJson = kotlinx.serialization.json.Json.encodeToString(
                 listOf(
-                    com.halo.data.matrix.events.PostMedia(
+                    PostMedia(
                         mxcUri = mediaMxc,
                         mimeType = mimeType
                     )
@@ -137,16 +170,17 @@ class FeedRepository @Inject constructor(
             ),
             locationJson = location?.takeIf { it.isNotBlank() }?.let {
                 kotlinx.serialization.json.Json.encodeToString(
-                    com.halo.data.matrix.events.PostLocation(name = it)
+                    PostLocation(name = it)
                 )
             },
             tagsJson = "[]",
             likeCount = 0,
             commentCount = 0,
             isLikedByMe = false,
-            createdAt = System.currentTimeMillis(),
-            cachedAt = System.currentTimeMillis()
+            createdAt = now,
+            cachedAt = now
         )
         postDao.insertPosts(listOf(entity))
+        return Result.success(Unit)
     }
 }

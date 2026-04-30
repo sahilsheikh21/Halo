@@ -68,18 +68,23 @@ class CreateViewModel @Inject constructor(
             val mxcUri = result.getOrNull()
 
             if (mxcUri != null) {
-                feedRepository.publishPost(
+                val publishResult = feedRepository.publishPost(
                     caption  = _caption.value.trim(),
                     mediaMxc = mxcUri,
                     mimeType = mimeType,
                     location = _location.value.trim().ifBlank { null }
                 )
-                // Clear form and navigate away only on success
-                _caption.value          = ""
-                _selectedMediaUri.value = null
-                _location.value         = ""
-                _isPosting.value        = false
-                onComplete()
+                if (publishResult.isSuccess) {
+                    // Clear form and navigate away only on full remote+local success.
+                    _caption.value          = ""
+                    _selectedMediaUri.value = null
+                    _location.value         = ""
+                    _isPosting.value        = false
+                    onComplete()
+                } else {
+                    _error.value = "Post publish failed: ${publishResult.exceptionOrNull()?.message ?: "unknown error"}"
+                    _isPosting.value = false
+                }
             } else {
                 // B7: Surface the failure — do NOT navigate away or clear the form
                 // so the user still has their content and can retry.
@@ -103,10 +108,15 @@ class CreateViewModel @Inject constructor(
             val mxcUri = result.getOrNull()
 
             if (mxcUri != null) {
-                storyRepository.publishStory(mediaMxc = mxcUri)
-                _selectedMediaUri.value = null
-                _isPosting.value        = false
-                onComplete()
+                val publishResult = storyRepository.publishStory(mediaMxc = mxcUri)
+                if (publishResult.isSuccess) {
+                    _selectedMediaUri.value = null
+                    _isPosting.value        = false
+                    onComplete()
+                } else {
+                    _error.value = "Story publish failed: ${publishResult.exceptionOrNull()?.message ?: "unknown error"}"
+                    _isPosting.value = false
+                }
             } else {
                 val cause = result.exceptionOrNull()?.message ?: "Unknown error"
                 _error.value     = "Story upload failed: $cause"
