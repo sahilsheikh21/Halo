@@ -1,94 +1,153 @@
-<div align="center">
+# Halo
 
-# 🌟 Halo
+Halo is a modern Android social + messaging app built on Matrix.  
+It combines direct messaging, social feed posts, and stories in a single Kotlin + Jetpack Compose experience.
 
-**A modern Android social and chat app powered by the Matrix protocol, delivering real-time messaging, secure media sharing, and community feeds all in one stunning interface.**
-
-![App Banner](docs/banner.png)
-
-[![Kotlin](https://img.shields.io/badge/Kotlin-17-blue.svg)](https://kotlinlang.org)
-[![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com/)
-[![Matrix SDK](https://img.shields.io/badge/Powered_by-Matrix-black.svg)](https://matrix.org/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9.22-7F52FF.svg)](https://kotlinlang.org)
+[![Android](https://img.shields.io/badge/Android-API%2026%2B-3DDC84.svg)](https://developer.android.com/)
+[![Matrix](https://img.shields.io/badge/Protocol-Matrix-000000.svg)](https://matrix.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-</div>
+## Overview
 
-## 📖 Introduction
+Halo is designed to make decentralized communication feel native and fast on Android:
 
-Welcome to **Halo**! In a world filled with walled-garden social networks, Halo brings the power of decentralized, secure communication straight to your Android device. 
+- **Chat:** 1:1 direct messaging with Matrix room sync and local persistence.
+- **Feed:** Timeline-style post feed backed by local Room cache.
+- **Stories:** Expiring stories grouped by author with seen/unseen tracking.
+- **Offline-friendly UX:** Local-first rendering via Room + Flow, with sync-driven updates.
 
-Built natively with Kotlin and Jetpack Compose, Halo provides a gorgeous, fluid user experience. Under the hood, it leverages the robust Matrix Rust SDK to ensure your chats are blazing fast, reliable, and secure. Whether you're catching up with friends in real-time or scrolling through community feeds, Halo makes decentralized communication feel incredibly effortless.
+## Tech Stack
 
----
+- **Language:** Kotlin
+- **UI:** Jetpack Compose + Material 3
+- **DI:** Hilt
+- **Local DB:** Room
+- **Async:** Kotlin Coroutines + Flow
+- **Serialization:** kotlinx.serialization
+- **Image Loading:** Coil
+- **Protocol layer:** Matrix Rust SDK (`org.matrix.rustcomponents:sdk-android`)
 
-## ✨ Core Features
+## Project Structure
 
-*   **💬 Real-Time Messaging:** Blazing-fast chat synchronization powered by the Matrix protocol. Never miss a message.
-*   **📸 Media Sharing:** Seamlessly upload and share high-quality images and videos with your contacts.
-*   **🌐 Community Feeds:** Discover and engage with posts in a beautifully designed social feed.
-*   **🛡️ Secure & Private:** Decentralized architecture utilizing the Matrix Rust SDK keeps your data out of the hands of big tech.
-*   **🎨 Stunning UI:** A fluid, modern interface built from the ground up using Jetpack Compose and Material 3 design principles.
+`app/src/main/java/com/halo` is organized by layer:
 
----
+- `data/`
+  - `local/` Room entities, DAO interfaces, database
+  - `matrix/` Matrix client, sync managers, event processors
+  - `repository/` app-facing data orchestration
+- `domain/` UI-facing models
+- `ui/`
+  - `screens/` feature screens and view models
+  - `components/` reusable Compose widgets
+  - `navigation/` nav graph and bottom navigation
+- `di/` dependency modules
 
-## 🚀 Quick Start / Installation
+## Requirements
 
-Ready to try Halo? Getting the app running on your local machine takes just a few minutes.
+- Android Studio Iguana or newer
+- JDK 17
+- Android SDK 34
+- Emulator/device API 26+
 
-### Prerequisites
-*   [Android Studio](https://developer.android.com/studio) (Latest Version)
-*   An Android Emulator or physical device running Android 8.0 (API 26) or higher.
+## Quick Start
 
-### Step-by-Step Guide
+```bash
+git clone https://github.com/sahilsheikh21/Halo.git
+cd Halo
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/sahilsheikh21/Halo.git
-   cd Halo
-   ```
-2. **Open in Android Studio:**
-   Launch Android Studio, select **Open**, and choose the `Halo` directory.
-3. **Sync Gradle:**
-   Allow Android Studio to download dependencies and sync the project (this may take a minute).
-4. **Run the App:**
-   Select your emulator or physical device from the target dropdown and click the ▶️ **Run** button (or press `Shift + F10`).
+Then:
 
----
+1. Open the project in Android Studio.
+2. Let Gradle sync finish.
+3. Select an emulator/device.
+4. Run the `app` configuration.
 
-## 🕹️ Usage
+## Build and Validation Commands
 
-Using Halo is as simple as any major social app, but with the added benefits of decentralization:
+From project root:
 
-1. **Create an Account:** Open the app and register a new Matrix account (or log into an existing one).
-2. **Discover & Chat:** Use the Explore tab to find friends or join rooms, and start chatting instantly.
-3. **Share & Post:** Tap the create button to upload media or share a new post to your community feed!
+```bash
+# Compile Kotlin sources
+./gradlew :app:compileDebugKotlin
 
-![Demo](docs/demo.gif)
+# Build debug APK
+./gradlew :app:assembleDebug
 
----
+# Run unit tests
+./gradlew :app:testDebugUnitTest
+```
 
-## ❓ FAQ & Troubleshooting
+On Windows PowerShell, prefix with `.\`:
 
-**Q: The app isn't syncing my messages immediately. What should I do?**  
-**A:** Ensure you have a stable internet connection. If the issue persists, try swiping down on the chat screen to force a manual refresh, or restart the app to re-establish the Matrix Sync pipeline.
+```powershell
+.\gradlew :app:compileDebugKotlin
+```
 
-**Q: I'm getting build errors related to the Matrix SDK.**  
-**A:** Halo uses the Matrix Rust SDK. Ensure you have synced your Gradle files completely and are using Java 17 for your compilation targets. Try running `Build > Clean Project` followed by `Rebuild Project`.
+## Matrix + Data Flow (High-Level)
 
----
+1. `MatrixClientManager` provides authenticated Matrix client/session access.
+2. `SlidingSyncManager` and `SyncEventProcessor` observe sync and timeline updates.
+3. Events are transformed into local entities and persisted in Room.
+4. Repositories expose reactive `Flow` streams to UI ViewModels.
+5. Compose screens render state from ViewModels and dispatch user actions back to repositories.
 
-## 🤝 Contributing
+## Current Status
 
-We love community contributions! If you have an idea to make Halo even better, here’s how you can help:
+Halo is under active development. Core app flows are present, with parts of the feed/story protocol integration still evolving. The app is suitable for development/testing and iterative feature work.
 
-1. **Fork** the repository.
-2. **Create a branch** for your feature (`git checkout -b feature/AmazingFeature`).
-3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`).
-4. **Push** to the branch (`git push origin feature/AmazingFeature`).
-5. Open a **Pull Request**.
+## Troubleshooting
 
-If you find a bug, please [open an issue](https://github.com/sahilsheikh21/Halo/issues) with a detailed description of the problem.
+### Gradle sync fails
 
-## 📄 License
+- Confirm JDK 17 is selected in Android Studio (`Gradle JDK`).
+- Run:
 
-Distributed under the MIT License. See `LICENSE` for more information.
+```bash
+./gradlew --stop
+./gradlew clean
+```
+
+### Matrix SDK dependency issues
+
+This project uses Matrix artifacts from Sonatype snapshots. Verify `settings.gradle.kts` still contains:
+
+- `mavenCentral()`
+- `maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }`
+
+### App compiles but sync seems stale
+
+- Verify connectivity and homeserver availability.
+- Re-launch the app to reinitialize sync and listeners.
+- Check logcat tags around Matrix and sync components for runtime errors.
+
+## Contributing
+
+Contributions are welcome.
+
+1. Fork the repository.
+2. Create a branch:
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+3. Make changes with tests where possible.
+4. Ensure project compiles:
+
+```bash
+./gradlew :app:compileDebugKotlin
+```
+
+5. Open a pull request with a clear problem statement and validation notes.
+
+## Security Notes
+
+- Do not commit secrets, tokens, or local credential files.
+- Keep any homeserver-specific credentials out of source control.
+- Prefer environment or local-only configuration for sensitive values.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.
