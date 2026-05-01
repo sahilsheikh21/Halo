@@ -93,10 +93,6 @@ On Windows PowerShell, prefix with `.\`:
 4. Repositories expose reactive `Flow` streams to UI ViewModels.
 5. Compose screens render state from ViewModels and dispatch user actions back to repositories.
 
-## Current Status
-
-Halo is under active development. Core app flows are present, with parts of the feed/story protocol integration still evolving. The app is suitable for development/testing and iterative feature work.
-
 ## Troubleshooting
 
 ### Gradle sync fails
@@ -141,12 +137,6 @@ git checkout -b feature/your-feature-name
 ```
 
 5. Open a pull request with a clear problem statement and validation notes.
-
-## Security Notes
-
-- Do not commit secrets, tokens, or local credential files.
-- Keep any homeserver-specific credentials out of source control.
-- Prefer environment or local-only configuration for sensitive values.
 
 ## License
 
