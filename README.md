@@ -102,7 +102,6 @@ On Windows PowerShell, prefix with `.\`:
 
 ```bash
 ./gradlew --stop
-./gradlew clean
 ```
 
 ### Matrix SDK dependency issues
