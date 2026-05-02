@@ -75,10 +75,6 @@ From project root:
 # Build debug APK
 ./gradlew :app:assembleDebug
 
-# Run unit tests
-./gradlew :app:testDebugUnitTest
-```
-
 On Windows PowerShell, prefix with `.\`:
 
 ```powershell
