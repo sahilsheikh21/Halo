@@ -74,11 +74,6 @@ From project root:
 
 # Build debug APK
 ./gradlew :app:assembleDebug
-
-On Windows PowerShell, prefix with `.\`:
-
-```powershell
-.\gradlew :app:compileDebugKotlin
 ```
 
 ## Matrix + Data Flow (High-Level)
