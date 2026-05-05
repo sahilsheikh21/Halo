@@ -84,17 +84,6 @@ From project root:
 4. Repositories expose reactive `Flow` streams to UI ViewModels.
 5. Compose screens render state from ViewModels and dispatch user actions back to repositories.
 
-## Troubleshooting
-
-### Gradle sync fails
-
-- Confirm JDK 17 is selected in Android Studio (`Gradle JDK`).
-- Run:
-
-```bash
-./gradlew --stop
-```
-
 ### Matrix SDK dependency issues
 
 This project uses Matrix artifacts from Sonatype snapshots. Verify `settings.gradle.kts` still contains:
