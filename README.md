@@ -97,26 +97,6 @@ This project uses Matrix artifacts from Sonatype snapshots. Verify `settings.gra
 - Re-launch the app to reinitialize sync and listeners.
 - Check logcat tags around Matrix and sync components for runtime errors.
 
-## Contributing
-
-Contributions are welcome.
-
-1. Fork the repository.
-2. Create a branch:
-
-```bash
-git checkout -b feature/your-feature-name
-```
-
-3. Make changes with tests where possible.
-4. Ensure project compiles:
-
-```bash
-./gradlew :app:compileDebugKotlin
-```
-
-5. Open a pull request with a clear problem statement and validation notes.
-
 ## License
 
 This project is licensed under the MIT License. See `LICENSE`.
