@@ -1,5 +1,11 @@
 package com.halo.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,10 +22,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +50,9 @@ import com.halo.ui.theme.TextSecondary
 /**
  * Story ring item in the home screen horizontal strip.
  * Shows gradient ring for unseen stories, grey for seen.
+ *
+ * BUG-13 FIX: Added a rotating gradient animation for unseen stories
+ * to draw attention and make the story strip feel alive.
  */
 @Composable
 fun StoryItem(
@@ -52,6 +66,18 @@ fun StoryItem(
         HaloGradients.storyRingSeen
     }
 
+    // BUG-13 FIX: Rotating ring animation for unseen stories
+    val infiniteTransition = rememberInfiniteTransition(label = "storyRing")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ringRotation"
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -59,16 +85,32 @@ fun StoryItem(
             .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            // Gradient ring border
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .border(
-                        width = if (storyGroup.hasUnseenStories) 2.5.dp else 1.5.dp,
-                        brush = ringBrush,
-                        shape = CircleShape
-                    )
-            )
+            if (storyGroup.hasUnseenStories) {
+                // Animated rotating gradient ring for unseen stories
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .drawBehind {
+                            rotate(rotation) {
+                                drawCircle(
+                                    brush = ringBrush,
+                                    style = Stroke(width = 2.5.dp.toPx())
+                                )
+                            }
+                        }
+                )
+            } else {
+                // Static grey ring for seen stories
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .border(
+                            width = 1.5.dp,
+                            brush = ringBrush,
+                            shape = CircleShape
+                        )
+                )
+            }
 
             // Avatar image
             AsyncImage(

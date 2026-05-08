@@ -69,6 +69,7 @@ fun HomeScreen(
     onNavigateToExplore: () -> Unit = {},
     onNavigateToActivity: () -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
+    onNavigateToCreate: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val posts by viewModel.feedPosts.collectAsState()
@@ -159,16 +160,25 @@ fun HomeScreen(
                     item {
                         AddStoryItem(
                             avatarUrl = null,
-                            onClick = { onStoryClick("me") }
+                            onClick = onNavigateToCreate
                         )
                     }
-                    if (storyGroups.isEmpty()) {
+                    if (isRefreshing && storyGroups.isEmpty()) {
                         items(5) { ShimmerStoryItem() }
-                    } else {
+                    } else if (storyGroups.isNotEmpty()) {
                         items(storyGroups) { group ->
                             StoryItem(
                                 storyGroup = group,
                                 onClick = { onStoryClick(group.authorId) }
+                            )
+                        }
+                    } else {
+                        item {
+                            Text(
+                                text = "No stories yet",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 18.dp)
                             )
                         }
                     }

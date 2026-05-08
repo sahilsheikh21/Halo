@@ -1,5 +1,12 @@
 package com.halo.ui.screens.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -204,9 +212,25 @@ fun ChatScreen(
 
             Spacer(modifier = Modifier.width(4.dp))
 
+            // BUG-13 FIX: Animated send button
+            var sendBounce by remember { mutableStateOf(false) }
+            val sendScale by animateFloatAsState(
+                targetValue = when {
+                    sendBounce -> 0.7f
+                    inputText.isNotBlank() -> 1.1f
+                    else -> 1f
+                },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "sendScale",
+                finishedListener = { sendBounce = false }
+            )
             IconButton(
                 onClick = {
                     if (inputText.isNotBlank()) {
+                        sendBounce = true
                         viewModel.sendMessage(roomId, inputText.trim())
                         inputText = ""
                     }
@@ -216,7 +240,9 @@ fun ChatScreen(
                     Icons.AutoMirrored.Filled.Send,
                     "Send",
                     tint = if (inputText.isNotBlank()) HaloPurple else TextTertiary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .scale(sendScale)
                 )
             }
         }
@@ -246,6 +272,17 @@ private fun MessageBubble(
         RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)
     }
 
+    // BUG-13 FIX: Slide-in animation for message bubbles
+    AnimatedVisibility(
+        visible = true,
+        enter = slideInHorizontally(
+            initialOffsetX = { if (message.isMe) it / 3 else -it / 3 },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        ) + fadeIn(animationSpec = tween(200))
+    ) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = alignment
@@ -315,6 +352,7 @@ private fun MessageBubble(
             }
         }
     }
+    } // AnimatedVisibility
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

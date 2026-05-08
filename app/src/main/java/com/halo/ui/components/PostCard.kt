@@ -266,18 +266,31 @@ fun PostCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Like
+            var likeButtonBounce by remember { mutableStateOf(false) }
+            val likeButtonScale by animateFloatAsState(
+                targetValue = if (likeButtonBounce) 1.3f else 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "likeButtonScale",
+                finishedListener = { likeButtonBounce = false }
+            )
             IconButton(
                 onClick = {
                     isLiked = !isLiked
-                    likeCount += if (isLiked) 1 else -1
-                    if (isLiked) onLikeClick(post.eventId)
+                    likeCount = maxOf(0, likeCount + if (isLiked) 1 else -1)
+                    likeButtonBounce = true
+                    onLikeClick(post.eventId)
                 }
             ) {
                 Icon(
                     imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = "Like",
                     tint = likeIconColor,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier
+                        .size(26.dp)
+                        .scale(likeButtonScale)
                 )
             }
 

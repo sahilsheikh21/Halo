@@ -127,13 +127,36 @@ class UserRepository @Inject constructor(
                 ))
             }
         }
-        
-        // TODO: Join the user's Feed Room via Matrix SDK
+
+        // Join the user's feed room via Matrix SDK if available
+        try {
+            val feedRoomId = userDao.getUserById(userId)?.feedRoomId
+            if (!feedRoomId.isNullOrBlank() && feedRoomId != "local_feed") {
+                val client = matrixClientManager.getClient()
+                val room = client?.getRoom(feedRoomId)
+                room?.join()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("UserRepository", "Could not join feed room for $userId", e)
+            // Still mark as following locally even if room join fails
+        }
+
         userDao.updateFollowState(userId, true)
     }
 
     suspend fun unfollowUser(userId: String) {
-        // TODO: Leave the user's Feed Room via Matrix SDK
+        // Leave the user's feed room via Matrix SDK if available
+        try {
+            val feedRoomId = userDao.getUserById(userId)?.feedRoomId
+            if (!feedRoomId.isNullOrBlank() && feedRoomId != "local_feed") {
+                val client = matrixClientManager.getClient()
+                val room = client?.getRoom(feedRoomId)
+                room?.leave()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("UserRepository", "Could not leave feed room for $userId", e)
+        }
+
         userDao.updateFollowState(userId, false)
     }
 

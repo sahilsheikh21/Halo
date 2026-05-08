@@ -1,6 +1,11 @@
 package com.halo.ui.screens.profile
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,9 +44,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -219,6 +228,19 @@ fun ProfileScreen(
                         animationSpec = tween(200),
                         label = "followBg"
                     )
+                    
+                    // BUG-13 FIX: Follow button bounce animation
+                    var followBounce by remember { mutableStateOf(false) }
+                    val followScale by animateFloatAsState(
+                        targetValue = if (followBounce) 0.85f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "followScale",
+                        finishedListener = { followBounce = false }
+                    )
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -226,10 +248,14 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { viewModel.toggleFollow(userId, isFollowing) },
+                            onClick = { 
+                                followBounce = true
+                                viewModel.toggleFollow(userId, isFollowing) 
+                            },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(34.dp),
+                                .height(34.dp)
+                                .scale(followScale),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(0.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -335,12 +361,19 @@ fun ProfileScreen(
 
 @Composable
 private fun ProfileStatColumn(count: Int, label: String) {
+    // BUG-13 FIX: Count-up animation for profile stats
+    val animatedCount by animateIntAsState(
+        targetValue = count,
+        animationSpec = tween(durationMillis = 600),
+        label = "statCount"
+    )
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = when {
-                count >= 1_000_000 -> "${count / 1_000_000}M"
-                count >= 1_000 -> "${count / 1_000}K"
-                else -> count.toString()
+                animatedCount >= 1_000_000 -> "${animatedCount / 1_000_000}M"
+                animatedCount >= 1_000 -> "${animatedCount / 1_000}K"
+                else -> animatedCount.toString()
             },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,

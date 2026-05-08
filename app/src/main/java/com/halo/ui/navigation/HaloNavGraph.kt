@@ -122,6 +122,11 @@ fun HaloNavGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onNavigateToCreate = {
+                    navController.navigate(Route.Create.path) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
