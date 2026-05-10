@@ -72,10 +72,6 @@ From project root:
 # Compile Kotlin sources
 ./gradlew :app:compileDebugKotlin
 
-# Build debug APK
-./gradlew :app:assembleDebug
-```
-
 ## Matrix + Data Flow (High-Level)
 
 1. `MatrixClientManager` provides authenticated Matrix client/session access.
