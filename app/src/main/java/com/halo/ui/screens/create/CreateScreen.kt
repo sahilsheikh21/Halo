@@ -217,7 +217,8 @@ fun CreateScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedButton(
-                            onClick = { /* camera intent */ },
+                            onClick = {},
+                            enabled = false,
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = HaloPurple),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HaloPurple)
@@ -228,7 +229,7 @@ fun CreateScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Open Camera")
+                            Text("Camera soon")
                         }
                     }
                 }
@@ -256,26 +257,32 @@ fun CreateScreen(
             )
 
             // ─── Location field ───────────────────────────────────────
-            Row(
+            TextField(
+                value = location,
+                onValueChange = viewModel::updateLocation,
+                placeholder = { Text("Add location", color = TextTertiary) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = HaloCoral
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = DarkBackground,
+                    unfocusedContainerColor = DarkBackground,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = HaloPurple
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = HaloCoral,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = location.ifBlank { "Add location" },
-                    color = if (location.isBlank()) TextTertiary else TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 

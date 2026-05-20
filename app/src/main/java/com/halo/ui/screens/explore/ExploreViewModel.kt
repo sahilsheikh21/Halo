@@ -7,6 +7,7 @@ import com.halo.data.repository.UserRepository
 import com.halo.domain.model.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +22,14 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 
-@OptIn(ExperimentalCoroutinesApi::class)
+sealed interface ExploreSearchUiState {
+    data object Idle : ExploreSearchUiState
+    data object Loading : ExploreSearchUiState
+    data class Success(val users: List<UserProfile>) : ExploreSearchUiState
+    data class Error(val message: String) : ExploreSearchUiState
+}
+
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class ExploreViewModel @Inject constructor(
     private val userRepository: UserRepository,
@@ -44,24 +52,33 @@ class ExploreViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val searchResults: StateFlow<List<UserProfile>> = _searchQuery
+    val searchUiState: StateFlow<ExploreSearchUiState> = _searchQuery
         .debounce(500)
         .distinctUntilChanged()
         .flatMapLatest { query ->
             if (query.isBlank()) {
-                flowOf(emptyList())
+                flowOf<ExploreSearchUiState>(ExploreSearchUiState.Idle)
             } else {
-                flow {
-                    // Try real search
+                flow<ExploreSearchUiState> {
+                    emit(ExploreSearchUiState.Loading)
                     val result = userRepository.searchUsersReal(query)
-                    emit(result.getOrDefault(emptyList()))
+                    emit(
+                        result.fold(
+                            onSuccess = { ExploreSearchUiState.Success(it) },
+                            onFailure = {
+                                ExploreSearchUiState.Error(
+                                    it.message ?: "Search failed. Check your connection and session."
+                                )
+                            }
+                        )
+                    )
                 }
             }
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
+            initialValue = ExploreSearchUiState.Idle
         )
 
     fun updateSearchQuery(query: String) {

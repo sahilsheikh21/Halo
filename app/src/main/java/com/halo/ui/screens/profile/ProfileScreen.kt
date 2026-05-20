@@ -201,6 +201,7 @@ fun ProfileScreen(
                     ) {
                         OutlinedButton(
                             onClick = {},
+                            enabled = false,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(34.dp),
@@ -212,6 +213,7 @@ fun ProfileScreen(
                         }
                         OutlinedButton(
                             onClick = {},
+                            enabled = false,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(34.dp),

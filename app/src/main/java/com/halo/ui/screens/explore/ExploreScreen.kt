@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,12 +53,11 @@ import com.halo.ui.theme.TextTertiary
 @Composable
 fun ExploreScreen(
     onUserClick: (String) -> Unit = {},
-    onPostClick: (String) -> Unit = {},
     viewModel: ExploreViewModel = hiltViewModel()
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val exploreItems by viewModel.exploreItems.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
+    val searchUiState by viewModel.searchUiState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -91,45 +91,84 @@ fun ExploreScreen(
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         )
 
-        if (searchQuery.isNotBlank() && searchResults.isNotEmpty()) {
-            // ─── Search results ────────────────────────────────────
-            searchResults.forEach { user ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onUserClick(user.userId) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    AsyncImage(
-                        model = user.avatarUrl,
-                        contentDescription = user.displayName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(DarkSurfaceVariant)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+        if (searchQuery.isNotBlank()) {
+            when (val state = searchUiState) {
+                ExploreSearchUiState.Idle -> Unit
+                ExploreSearchUiState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = HaloPurple)
+                    }
+                }
+                is ExploreSearchUiState.Error -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = user.displayName,
+                            text = state.message,
+                            color = TextSecondary,
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "@${user.username}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            modifier = Modifier.padding(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "${formatCount(user.followerCount)} followers",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextTertiary
-                    )
+                }
+                is ExploreSearchUiState.Success -> {
+                    if (state.users.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No people found for \"$searchQuery\"",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(24.dp)
+                            )
+                        }
+                    } else {
+                        state.users.forEach { user ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onUserClick(user.userId) }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                            ) {
+                                AsyncImage(
+                                    model = user.avatarUrl,
+                                    contentDescription = user.displayName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(CircleShape)
+                                        .background(DarkSurfaceVariant)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = user.displayName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "@${user.username}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    text = "${formatCount(user.followerCount)} followers",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextTertiary
+                                )
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -151,7 +190,7 @@ fun ExploreScreen(
                                 else Modifier.aspectRatio(1f)
                             )
                             .background(DarkSurfaceVariant)
-                            .clickable { onPostClick(authorId) }
+                            .clickable { onUserClick(authorId) }
                     ) {
                         AsyncImage(
                             model = imageUrl,

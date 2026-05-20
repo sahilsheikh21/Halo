@@ -173,19 +173,25 @@ fun ChatScreen(
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = {}) {
+            IconButton(
+                onClick = {},
+                enabled = false
+            ) {
                 Icon(
                     Icons.Default.CameraAlt,
-                    "Camera",
-                    tint = TextSecondary,
+                    "Camera coming soon",
+                    tint = TextTertiary,
                     modifier = Modifier.size(22.dp)
                 )
             }
-            IconButton(onClick = {}) {
+            IconButton(
+                onClick = {},
+                enabled = false
+            ) {
                 Icon(
                     Icons.Default.Image,
-                    "Gallery",
-                    tint = TextSecondary,
+                    "Gallery coming soon",
+                    tint = TextTertiary,
                     modifier = Modifier.size(22.dp)
                 )
             }

@@ -86,13 +86,17 @@ class StoryRepository @Inject constructor(
     suspend fun refreshStories() {
         cleanExpiredStories()
     }
-    suspend fun publishStory(mediaMxc: String): Result<Unit> {
+    suspend fun publishStory(
+        mediaMxc: String,
+        mimeType: String
+    ): Result<Unit> {
         val userId = matrixClientManager.getCurrentSession()?.userId ?: "@me:localhost"
         val now = System.currentTimeMillis()
+        val storyType = if (mimeType.startsWith("video/")) StoryType.VIDEO else StoryType.IMAGE
         val haloStory = HaloStory(
             mediaMxc = mediaMxc,
             createdAt = now,
-            storyType = StoryType.IMAGE
+            storyType = storyType
         )
         val typedJson = json.encodeToString(haloStory)
         val payload = "HALO_STORY:$typedJson"
@@ -111,7 +115,7 @@ class StoryRepository @Inject constructor(
             feedRoomId = broadcastRoom.id(),
             authorId = userId,
             mediaMxc = mediaMxc,
-            storyType = "image",
+            storyType = storyType.name.lowercase(),
             durationMs = 5000,
             caption = null,
             createdAt = now,

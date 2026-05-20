@@ -42,7 +42,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.halo.data.mock.MockData
 import com.halo.domain.model.Story
 import com.halo.domain.model.StoryGroup
 import com.halo.ui.theme.DarkBackground

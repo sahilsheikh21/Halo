@@ -108,7 +108,10 @@ class CreateViewModel @Inject constructor(
             val mxcUri = result.getOrNull()
 
             if (mxcUri != null) {
-                val publishResult = storyRepository.publishStory(mediaMxc = mxcUri)
+                val publishResult = storyRepository.publishStory(
+                    mediaMxc = mxcUri,
+                    mimeType = mimeType
+                )
                 if (publishResult.isSuccess) {
                     _selectedMediaUri.value = null
                     _isPosting.value        = false

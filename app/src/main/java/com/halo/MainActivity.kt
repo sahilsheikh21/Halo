@@ -46,9 +46,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Seed mock data for first launch
-        lifecycleScope.launch {
-            mockDataSeeder.seedIfNeeded()
+        // Keep sample content limited to debug/demo builds so production behavior
+        // reflects the real Matrix + Room pipeline instead of seeded placeholders.
+        if (BuildConfig.DEMO_SEEDING_ENABLED) {
+            lifecycleScope.launch {
+                mockDataSeeder.seedIfNeeded()
+            }
         }
 
         // Start event processing pipeline (waits until sync is actually running)

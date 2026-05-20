@@ -29,6 +29,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            buildConfigField("boolean", "DEMO_SEEDING_ENABLED", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -37,6 +38,7 @@ android {
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
+            buildConfigField("boolean", "DEMO_SEEDING_ENABLED", "true")
         }
     }
 

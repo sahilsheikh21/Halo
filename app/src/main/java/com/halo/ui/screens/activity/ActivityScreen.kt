@@ -82,8 +82,8 @@ fun ActivityScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 EmptyState(
                     icon = Icons.Filled.Favorite,
-                    title = "No activity yet",
-                    description = "Interact with posts or follow people to see what's happening.",
+                    title = "Activity is not wired yet",
+                    description = "Notifications, reactions, and comment activity are still missing a real backend pipeline in this build.",
                     buttonText = "Explore people and posts",
                     onButtonClick = onNavigateToExplore
                 )
