@@ -80,12 +80,7 @@ From project root:
 4. Repositories expose reactive `Flow` streams to UI ViewModels.
 5. Compose screens render state from ViewModels and dispatch user actions back to repositories.
 
-### Matrix SDK dependency issues
 
-This project uses Matrix artifacts from Sonatype snapshots. Verify `settings.gradle.kts` still contains:
-
-- `mavenCentral()`
-- `maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }`
 
 ### App compiles but sync seems stale
 
