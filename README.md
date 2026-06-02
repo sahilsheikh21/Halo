@@ -81,13 +81,6 @@ From project root:
 5. Compose screens render state from ViewModels and dispatch user actions back to repositories.
 
 
-
-### App compiles but sync seems stale
-
-- Verify connectivity and homeserver availability.
-- Re-launch the app to reinitialize sync and listeners.
-- Check logcat tags around Matrix and sync components for runtime errors.
-
 ## License
 
 This project is licensed under the MIT License. See `LICENSE`.
