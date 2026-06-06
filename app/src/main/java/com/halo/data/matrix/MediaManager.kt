@@ -45,6 +45,13 @@ class MediaManager @Inject constructor(
             val inputStream = context.contentResolver.openInputStream(localUri)
                 ?: return@withContext Result.failure(Exception("Cannot open file: $localUri"))
 
+            // UI-4: Guard against OOM — reject files larger than 100 MB
+            val fileSize = context.contentResolver.openFileDescriptor(localUri, "r")?.use { it.statSize } ?: -1L
+            if (fileSize > 100 * 1024 * 1024) {
+                inputStream.close()
+                return@withContext Result.failure(Exception("File too large (${fileSize / 1024 / 1024} MB). Maximum is 100 MB."))
+            }
+
             val bytes = inputStream.use { it.readBytes() }
 
             // Matrix Rust SDK uploadMedia API (version 26.03.31):
