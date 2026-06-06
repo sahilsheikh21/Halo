@@ -287,7 +287,10 @@ class SyncEventProcessor @Inject constructor(
         val event = item.asEvent() ?: return
         val senderId = event.sender
         val timestamp = event.timestamp.toLong().takeIf { it > 0L } ?: System.currentTimeMillis()
-        val eventKey = buildDeterministicEventKey(roomId, senderId, timestamp, event.content.hashCode())
+        // Use the SDK's stable event ID when available; fall back to a
+        // deterministic composite key for local echoes / unsent items.
+        val eventKey = event.eventId
+            ?: buildDeterministicEventKey(roomId, senderId, timestamp)
         if (!markEventSeenPersisted(eventKey)) return
 
         val processed = when (val content = event.content) {
@@ -323,9 +326,8 @@ class SyncEventProcessor @Inject constructor(
         internal fun buildDeterministicEventKey(
             roomId: String,
             senderId: String,
-            timestamp: Long,
-            contentHash: Int
-        ): String = "$roomId|$senderId|$timestamp|$contentHash"
+            timestamp: Long
+        ): String = "$roomId|$senderId|$timestamp"
     }
 }
 
