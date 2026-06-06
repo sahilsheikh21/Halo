@@ -88,8 +88,8 @@ fun PostCard(
     onBookmarkClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var isLiked by remember(post.eventId) { mutableStateOf(post.isLikedByMe) }
-    var likeCount by remember(post.eventId) { mutableStateOf(post.likeCount) }
+    var isLiked by remember(post.eventId, post.isLikedByMe) { mutableStateOf(post.isLikedByMe) }
+    var likeCount by remember(post.eventId, post.likeCount) { mutableStateOf(post.likeCount) }
     var isBookmarked by remember { mutableStateOf(false) }
     var showHeartAnimation by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
