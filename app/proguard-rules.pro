@@ -1,8 +1,11 @@
 # Halo ProGuard Rules
 
-# Keep Matrix SDK
--keep class org.matrix.** { *; }
--keep class uniffi.** { *; }
+# Keep Matrix Rust SDK JNI/Uniffi bindings (required for native interop)
+-keep class org.matrix.rustcomponents.sdk.** { *; }
+-keep class uniffi.matrix_sdk.** { *; }
+-keep class uniffi.matrix_sdk_ffi.** { *; }
+# Keep JNA callback interfaces required by the Rust bridge
+-keep class * implements com.sun.jna.Callback { *; }
 
 # Keep Halo custom events (serialization)
 -keep class com.halo.data.matrix.events.** { *; }
