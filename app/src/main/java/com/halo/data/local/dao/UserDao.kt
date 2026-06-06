@@ -29,6 +29,14 @@ interface UserDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUsers(users: List<UserEntity>)
 
+    /**
+     * Insert user only if the row doesn't already exist.
+     * Prevents search/cache operations from overwriting locally-modified
+     * columns like is_following, bio, and feedRoomId.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertUserIgnore(user: UserEntity)
+
     @Update
     suspend fun updateUser(user: UserEntity)
 

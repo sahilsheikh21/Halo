@@ -33,7 +33,7 @@ class UserRepository @Inject constructor(
                 avatarMxc = profile.avatarUrl,
                 cachedAt = System.currentTimeMillis()
             )
-            userDao.insertUser(entity)
+            userDao.insertUserIgnore(entity)
             Result.success(entity.toDomainModel())
         } catch (e: Exception) {
             Result.failure(e)
@@ -96,7 +96,7 @@ class UserRepository @Inject constructor(
                     cachedAt = System.currentTimeMillis()
                 )
             }
-            userDao.insertUsers(entities)
+            entities.forEach { userDao.insertUserIgnore(it) }
             
             Result.success(users)
         } catch (e: Exception) {
