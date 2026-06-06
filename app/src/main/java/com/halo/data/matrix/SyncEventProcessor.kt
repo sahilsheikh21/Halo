@@ -55,8 +55,9 @@ class SyncEventProcessor @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /** One TaskHandle per room — lets us cancel individual listeners cleanly. */
-    private val activeListeners =
-        ConcurrentHashMap<String, org.matrix.rustcomponents.sdk.TaskHandle>()
+    private val activeListeners = ConcurrentHashMap<String, TaskHandle>()
+    /** Prevent GC from sweeping Timeline JNI wrappers while listeners are attached. */
+    private val activeTimelines = ConcurrentHashMap<String, org.matrix.rustcomponents.sdk.Timeline>()
 
     /**
      * B2: Tracks every Matrix event ID we have already processed.
@@ -170,11 +171,13 @@ class SyncEventProcessor @Inject constructor(
                     val handle = timeline.addListener(
                         HaloTimelineListener(roomId, this@SyncEventProcessor)
                     )
+                    activeTimelines[roomId] = timeline  // prevent GC of JNI wrapper
                     activeListeners[roomId] = handle
                     Log.d(TAG, "Attached timeline listener for room $roomId")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to attach listener for room $roomId", e)
                     activeListeners.remove(roomId)
+                    activeTimelines.remove(roomId)
                 } finally {
                     attachInProgress.remove(roomId)
                 }
