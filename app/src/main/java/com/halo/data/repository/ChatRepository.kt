@@ -1,6 +1,7 @@
 package com.halo.data.repository
 
 import android.util.Log
+import com.halo.data.local.HaloDatabase
 import com.halo.data.local.dao.ChatRoomDao
 import com.halo.data.local.dao.ChatRoomMemberDao
 import com.halo.data.local.dao.MessageDao
@@ -22,6 +23,7 @@ import org.matrix.rustcomponents.sdk.Membership
 import org.matrix.rustcomponents.sdk.RoomPreset
 import org.matrix.rustcomponents.sdk.RoomVisibility
 import org.matrix.rustcomponents.sdk.messageEventContentFromMarkdown
+import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,7 +37,8 @@ class ChatRepository @Inject constructor(
     private val matrixClientManager: MatrixClientManager,
     private val chatRoomDao: ChatRoomDao,
     private val chatRoomMemberDao: ChatRoomMemberDao,
-    private val messageDao: MessageDao
+    private val messageDao: MessageDao,
+    private val database: HaloDatabase
 ) {
     private val dmCreationLocks = mutableMapOf<String, Mutex>()
 
@@ -204,41 +207,43 @@ class ChatRepository @Inject constructor(
         body: String,
         timestamp: Long
     ) {
-        val session    = matrixClientManager.getCurrentSession()
-        val currentUserId = session?.userId
-        val isMe       = senderId == currentUserId
+        database.withTransaction {
+            val session    = matrixClientManager.getCurrentSession()
+            val currentUserId = session?.userId
+            val isMe       = senderId == currentUserId
 
-        if (isMe && currentUserId != null) {
-            // B1: look for a local echo we inserted in sendMessage()
-            val sinceTimestamp = System.currentTimeMillis() - LOCAL_ECHO_WINDOW_MS
-            val localEcho = messageDao.findRecentLocalMessage(
-                roomId         = roomId,
-                senderId       = currentUserId,
-                body           = body,
-                sinceTimestamp = sinceTimestamp
-            )
-            if (localEcho != null) {
-                // Remove the local placeholder and replace it with the server-confirmed row
-                messageDao.deleteMessage(localEcho.id)
-                Log.d(TAG, "Deduped local echo ${localEcho.id} → $eventId")
+            if (isMe && currentUserId != null) {
+                // B1: look for a local echo we inserted in sendMessage()
+                val sinceTimestamp = System.currentTimeMillis() - LOCAL_ECHO_WINDOW_MS
+                val localEcho = messageDao.findRecentLocalMessage(
+                    roomId         = roomId,
+                    senderId       = currentUserId,
+                    body           = body,
+                    sinceTimestamp = sinceTimestamp
+                )
+                if (localEcho != null) {
+                    // Remove the local placeholder and replace it with the server-confirmed row
+                    messageDao.deleteMessage(localEcho.id)
+                    Log.d(TAG, "Deduped local echo ${localEcho.id} → $eventId")
+                }
             }
-        }
 
-        messageDao.insertMessage(
-            MessageEntity(
-                id        = eventId,
-                roomId    = roomId,
-                senderId  = senderId,
-                body      = body,
-                isMe      = isMe,
-                timestamp = timestamp,
-                status    = MessageStatus.SENT
+            messageDao.insertMessage(
+                MessageEntity(
+                    id        = eventId,
+                    roomId    = roomId,
+                    senderId  = senderId,
+                    body      = body,
+                    isMe      = isMe,
+                    timestamp = timestamp,
+                    status    = MessageStatus.SENT
+                )
             )
-        )
 
-        // Keep the room's last-message preview up to date
-        chatRoomDao.getChatRoom(roomId)?.let { room ->
-            chatRoomDao.insertChatRoom(room.copy(lastMessage = body, lastMessageAt = timestamp))
+            // Keep the room's last-message preview up to date
+            chatRoomDao.getChatRoom(roomId)?.let { room ->
+                chatRoomDao.insertChatRoom(room.copy(lastMessage = body, lastMessageAt = timestamp))
+            }
         }
     }
 
@@ -440,7 +445,9 @@ class ChatRepository @Inject constructor(
     private suspend fun upsertRoomMembers(roomId: String, membersJoined: String) {
         val members = membersJoined.split(",").map { it.trim() }.filter { it.isNotBlank() }
         if (members.isEmpty()) return
-        chatRoomMemberDao.deleteMembersForRoom(roomId)
-        chatRoomMemberDao.insertMembers(members.map { ChatRoomMemberEntity(roomId = roomId, userId = it) })
+        database.withTransaction {
+            chatRoomMemberDao.deleteMembersForRoom(roomId)
+            chatRoomMemberDao.insertMembers(members.map { ChatRoomMemberEntity(roomId = roomId, userId = it) })
+        }
     }
 }
