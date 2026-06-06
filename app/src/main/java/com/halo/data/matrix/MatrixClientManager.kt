@@ -105,7 +105,6 @@ class MatrixClientManager(
             val sessionData = SessionData(
                 homeserverUrl = homeserverUrl,
                 userId = userId,
-                accessToken = accessToken,
                 deviceId = deviceId
             )
             _sessionState.value = SessionState.LoggedIn(sessionData)
@@ -169,7 +168,6 @@ class MatrixClientManager(
             val sessionData = SessionData(
                 homeserverUrl = sdkSession.homeserverUrl,
                 userId = userId,
-                accessToken = sdkSession.accessToken,
                 deviceId = sdkSession.deviceId
             )
 
@@ -301,6 +299,5 @@ sealed class SessionState {
 data class SessionData(
     val homeserverUrl: String,
     val userId: String,
-    val accessToken: String,
     val deviceId: String
 )
