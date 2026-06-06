@@ -57,6 +57,8 @@ class MockDataSeeder @Inject constructor(
                 storyType = "image",
                 durationMs = 5000,
                 caption = "Testing stories...",
+                thumbnailMxc = "mxc://matrix.org/vAtpYqIu", // UI-6: Fallback thumbnail for seed data
+                blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj", // UI-6: Fallback blurhash for seed data
                 createdAt = System.currentTimeMillis() - 1800000,
                 isSeen = false
             )
