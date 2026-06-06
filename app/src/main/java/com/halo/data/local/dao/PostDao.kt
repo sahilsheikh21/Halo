@@ -33,6 +33,13 @@ interface PostDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPost(post: PostEntity)
 
+    /**
+     * Insert posts only if they don't already exist — preserves local
+     * like/comment state when the sync timeline replays historical items.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPostsIgnore(posts: List<PostEntity>)
+
     @Update
     suspend fun updatePost(post: PostEntity)
 

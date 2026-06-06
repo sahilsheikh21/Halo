@@ -22,6 +22,13 @@ interface StoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStory(story: StoryEntity)
 
+    /**
+     * Insert stories only if they don't already exist — preserves local
+     * seen state when the sync timeline replays historical items.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertStoriesIgnore(stories: List<StoryEntity>)
+
     @Query("UPDATE stories SET is_seen = 1 WHERE event_id = :eventId")
     suspend fun markAsSeen(eventId: String)
 

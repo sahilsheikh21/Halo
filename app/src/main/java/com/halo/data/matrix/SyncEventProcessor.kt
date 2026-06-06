@@ -245,7 +245,7 @@ class SyncEventProcessor @Inject constructor(
                 createdAt    = haloPost.createdAt,
                 cachedAt     = System.currentTimeMillis()
             )
-            postDao.insertPosts(listOf(entity))
+            postDao.insertPostsIgnore(listOf(entity))
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode HaloPost (eventId=$eventId)", e)
@@ -275,7 +275,7 @@ class SyncEventProcessor @Inject constructor(
                 createdAt = haloStory.createdAt,
                 isSeen    = false
             )
-            storyDao.insertStories(listOf(entity))
+            storyDao.insertStoriesIgnore(listOf(entity))
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode HaloStory (eventId=$eventId)", e)
