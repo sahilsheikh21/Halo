@@ -290,7 +290,18 @@ class ChatRepository @Inject constructor(
         }
         try {
             val room    = client.getRoom(roomId) ?: throw IllegalStateException("Room $roomId not found")
-            val content = messageEventContentFromMarkdown(body)
+            // SEC-4: Escape markdown to prevent link/formatting injection
+            val sanitized = body
+                .replace("\\", "\\\\")
+                .replace("[", "\\[")
+                .replace("]", "\\]")
+                .replace("(", "\\(")
+                .replace(")", "\\)")
+                .replace("*", "\\*")
+                .replace("_", "\\_")
+                .replace("`", "\\`")
+                .replace("#", "\\#")
+            val content = messageEventContentFromMarkdown(sanitized)
             room.timeline().send(content)
 
             // Step 3a: network delivery handed off — mark SENT
