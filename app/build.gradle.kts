@@ -121,8 +121,6 @@ dependencies {
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
-    // DataStore
-    implementation(libs.datastore.preferences)
 
     // Matrix Rust SDK
     implementation(libs.matrix.sdk.android)
