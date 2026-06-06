@@ -99,7 +99,6 @@ class StoryRepository @Inject constructor(
             storyType = storyType
         )
         val typedJson = json.encodeToString(haloStory)
-        val payload = "HALO_STORY:$typedJson"
         val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
         val broadcastRoom = client.rooms().firstOrNull { room ->
             runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false)
@@ -107,7 +106,6 @@ class StoryRepository @Inject constructor(
 
         runCatching {
             broadcastRoom.sendRaw(HaloStory.EVENT_TYPE, typedJson)
-            broadcastRoom.timeline().send(messageEventContentFromMarkdown(payload))
         }.getOrElse { return Result.failure(it) }
 
         val entity = com.halo.data.local.entity.StoryEntity(

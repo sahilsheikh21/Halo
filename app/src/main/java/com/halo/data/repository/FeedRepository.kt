@@ -146,13 +146,10 @@ class FeedRepository @Inject constructor(
             runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false)
         } ?: return Result.failure(Exception("No feed-capable room available"))
         val typedJson = json.encodeToString(haloPost)
-        val legacyPayload = "HALO_POST:$typedJson"
 
         runCatching {
-            // Preferred path: typed custom event.
+            // Send typed custom event to the broadcast room.
             broadcastRoom.sendRaw(HaloPost.EVENT_TYPE, typedJson)
-            // Temporary compatibility path for legacy listeners.
-            broadcastRoom.timeline().send(messageEventContentFromMarkdown(legacyPayload))
         }.getOrElse { return Result.failure(it) }
 
         val entity = com.halo.data.local.entity.PostEntity(
