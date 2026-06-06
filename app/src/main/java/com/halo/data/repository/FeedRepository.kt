@@ -106,12 +106,16 @@ class FeedRepository @Inject constructor(
     suspend fun likePost(eventId: String) {
         // TODO: Send com.halo.reaction event via Matrix SDK
         val post = postDao.getPostById(eventId) ?: return
+        // BUG-6: Guard against double-like
+        if (post.isLikedByMe) return
         postDao.updateLikeState(eventId, post.likeCount + 1, true)
     }
 
     suspend fun unlikePost(eventId: String) {
         // TODO: Redact com.halo.reaction event via Matrix SDK
         val post = postDao.getPostById(eventId) ?: return
+        // BUG-6: Guard against double-unlike
+        if (!post.isLikedByMe) return
         postDao.updateLikeState(eventId, maxOf(0, post.likeCount - 1), false)
     }
 
