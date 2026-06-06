@@ -340,8 +340,13 @@ class ChatRepository @Inject constructor(
         val currentUserId = matrixClientManager.getCurrentSession()?.userId ?: return Result.failure(Exception("Not authenticated"))
         val lockKey = listOf(currentUserId, userId).sorted().joinToString("|")
         val mutex = synchronized(dmCreationLocks) { dmCreationLocks.getOrPut(lockKey) { Mutex() } }
-        return mutex.withLock {
-            createDirectMessageLocked(userId, currentUserId)
+        return try {
+            mutex.withLock {
+                createDirectMessageLocked(userId, currentUserId)
+            }
+        } finally {
+            // SEC-5: Evict the mutex after use to prevent unbounded map growth
+            synchronized(dmCreationLocks) { dmCreationLocks.remove(lockKey) }
         }
     }
 
