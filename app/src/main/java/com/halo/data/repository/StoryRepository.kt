@@ -90,7 +90,8 @@ class StoryRepository @Inject constructor(
         mediaMxc: String,
         mimeType: String
     ): Result<Unit> {
-        val userId = matrixClientManager.getCurrentSession()?.userId ?: "@me:localhost"
+        val userId = matrixClientManager.getCurrentSession()?.userId
+            ?: return Result.failure(Exception("Not authenticated"))
         val now = System.currentTimeMillis()
         val storyType = if (mimeType.startsWith("video/")) StoryType.VIDEO else StoryType.IMAGE
         val haloStory = HaloStory(

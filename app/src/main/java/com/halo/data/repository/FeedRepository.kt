@@ -131,7 +131,8 @@ class FeedRepository @Inject constructor(
         mimeType: String,
         location: String?
     ): Result<Unit> {
-        val userId = matrixClientManager.getCurrentSession()?.userId ?: "@me:localhost"
+        val userId = matrixClientManager.getCurrentSession()?.userId
+            ?: return Result.failure(Exception("Not authenticated"))
         val now = System.currentTimeMillis()
         val haloPost = HaloPost(
             caption = caption,
