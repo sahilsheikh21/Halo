@@ -88,7 +88,7 @@ class UserRepository @Inject constructor(
                     displayName = user.displayName,
                     avatarMxc = user.avatarUrl,
                     bio = user.bio,
-                    feedRoomId = user.feedRoomId ?: "",
+                    feedRoomId = user.feedRoomId,
                     isFollowing = user.isFollowing,
                     followerCount = user.followerCount,
                     followingCount = user.followingCount,
