@@ -27,6 +27,10 @@ data class ActivityItem(
 @HiltViewModel
 class ActivityViewModel @Inject constructor() : ViewModel() {
 
+    init {
+        refresh()
+    }
+
     private val _uiState = MutableStateFlow<UiState<List<ActivityItem>>>(UiState.Loading)
     val uiState: StateFlow<UiState<List<ActivityItem>>> = _uiState.asStateFlow()
 
