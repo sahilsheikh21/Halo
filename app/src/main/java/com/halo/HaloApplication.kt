@@ -7,6 +7,5 @@ import dagger.hilt.android.HiltAndroidApp
 class HaloApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Matrix SDK initialization will go here
     }
 }
