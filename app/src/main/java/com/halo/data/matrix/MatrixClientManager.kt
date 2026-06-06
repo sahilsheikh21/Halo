@@ -40,6 +40,7 @@ class MatrixClientManager(
     val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
 
     /** The active authenticated [Client]. Null when not logged in. */
+    @Volatile
     private var activeClient: Client? = null
 
     // ─── Encrypted session storage ─────────────────────────────────────────
