@@ -82,12 +82,14 @@ fun ChatScreen(
     onBackClick: () -> Unit,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val chatRoom by viewModel.getRoomDetails(roomId).collectAsStateWithLifecycle(initialValue = null)
+    val chatRoomFlow = remember(roomId) { viewModel.getRoomDetails(roomId) }
+    val chatRoom by chatRoomFlow.collectAsStateWithLifecycle(initialValue = null)
     val roomName = chatRoom?.name ?: "Chat"
     val avatarUrl = chatRoom?.avatarUrl
 
     var inputText by remember { mutableStateOf("") }
-    val messages by viewModel.getRoomTimeline(roomId).collectAsStateWithLifecycle(initialValue = emptyList())
+    val messagesFlow = remember(roomId) { viewModel.getRoomTimeline(roomId) }
+    val messages by messagesFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val listState = rememberLazyListState()
 
     // Scroll to bottom whenever a new message arrives

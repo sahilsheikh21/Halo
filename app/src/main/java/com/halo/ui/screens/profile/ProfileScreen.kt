@@ -76,9 +76,11 @@ fun ProfileScreen(
     onMessageClick: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
-    val userProfile by viewModel.observeUser(userId).collectAsState(initial = null)
+    val userProfileFlow = remember(userId) { viewModel.observeUser(userId) }
+    val userProfile by userProfileFlow.collectAsState(initial = null)
     val isFollowing = userProfile?.isFollowing == true
-    val userPosts by viewModel.getPostsForUser(userId).collectAsState(initial = emptyList())
+    val userPostsFlow = remember(userId) { viewModel.getPostsForUser(userId) }
+    val userPosts by userPostsFlow.collectAsState(initial = emptyList())
 
     androidx.compose.runtime.LaunchedEffect(userId) {
         viewModel.loadUser(userId)
