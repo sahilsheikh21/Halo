@@ -101,9 +101,12 @@ class StoryRepository @Inject constructor(
         )
         val typedJson = json.encodeToString(haloStory)
         val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
-        val broadcastRoom = client.rooms().firstOrNull { room ->
-            runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false)
-        } ?: return Result.failure(Exception("No story-capable room available"))
+        // BUG-10: Sort by room ID for deterministic selection across sync cycles
+        val broadcastRoom = client.rooms()
+            .filter { room -> runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false) }
+            .sortedBy { it.id() }
+            .firstOrNull()
+            ?: return Result.failure(Exception("No story-capable room available"))
 
         runCatching {
             broadcastRoom.sendRaw(HaloStory.EVENT_TYPE, typedJson)

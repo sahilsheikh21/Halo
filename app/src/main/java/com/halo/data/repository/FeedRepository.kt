@@ -147,9 +147,12 @@ class FeedRepository @Inject constructor(
             createdAt = now
         )
         val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
-        val broadcastRoom = client.rooms().firstOrNull { room ->
-            runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false)
-        } ?: return Result.failure(Exception("No feed-capable room available"))
+        // BUG-10: Sort by room ID for deterministic selection across sync cycles
+        val broadcastRoom = client.rooms()
+            .filter { room -> runCatching { !room.isDirect() && !room.isSpace() }.getOrDefault(false) }
+            .sortedBy { it.id() }
+            .firstOrNull()
+            ?: return Result.failure(Exception("No feed-capable room available"))
         val typedJson = json.encodeToString(haloPost)
 
         runCatching {
