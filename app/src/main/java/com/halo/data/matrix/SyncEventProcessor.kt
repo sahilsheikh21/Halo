@@ -297,9 +297,17 @@ class SyncEventProcessor @Inject constructor(
         val event = item.asEvent() ?: return
         val senderId = event.sender
         val timestamp = event.timestamp.toLong().takeIf { it > 0L } ?: System.currentTimeMillis()
-        // Use the SDK's stable event ID when available; fall back to a
-        // deterministic composite key for local echoes / unsent items.
-        val eventKey = event.eventId()
+        
+        val eventOrTx = event.eventOrTransactionId
+        val extractedId = if (eventOrTx is org.matrix.rustcomponents.sdk.EventOrTransactionId.EventId) {
+            eventOrTx.eventId
+        } else if (eventOrTx is org.matrix.rustcomponents.sdk.EventOrTransactionId.TransactionId) {
+            eventOrTx.transactionId
+        } else {
+            null
+        }
+        
+        val eventKey = extractedId
             ?: buildDeterministicEventKey(roomId, senderId, timestamp)
         if (!markEventSeenPersisted(eventKey)) return
 
