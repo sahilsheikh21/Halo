@@ -67,19 +67,6 @@ class SlidingSyncManager @Inject constructor(
      */
     fun getSyncService(): SyncService? = activeSyncService
 
-    /**
-     * Subscribe to a specific room for real-time updates.
-     */
-    suspend fun subscribeToRoom(roomId: String) {
-        // TODO: Subscribe to room timeline via RoomListService
-    }
-
-    /**
-     * Unsubscribe from a room's real-time updates.
-     */
-    suspend fun unsubscribeFromRoom(roomId: String) {
-        // TODO: Remove room subscription
-    }
 }
 
 sealed class SyncState {

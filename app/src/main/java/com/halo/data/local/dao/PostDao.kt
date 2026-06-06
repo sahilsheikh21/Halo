@@ -13,8 +13,6 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PostDao {
 
-    @Query("SELECT * FROM posts WHERE feed_room_id = :roomId ORDER BY created_at DESC")
-    fun getPostsByRoom(roomId: String): Flow<List<PostEntity>>
 
     @Transaction
     @Query("SELECT * FROM posts ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
