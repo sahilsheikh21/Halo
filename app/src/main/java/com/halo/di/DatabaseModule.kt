@@ -26,6 +26,7 @@ object DatabaseModule {
             "halo_database"
         )
             .addMigrations(HaloDatabase.MIGRATION_4_5)
+            .fallbackToDestructiveMigration()
             .build()
     }
 
