@@ -330,7 +330,7 @@ class ChatRepository @Inject constructor(
 
     private suspend fun createDirectMessageLocked(userId: String, currentUserId: String): Result<String> {
         val client = matrixClientManager.getClient() ?: return Result.failure(Exception("Not authenticated"))
-        val existingLocal = chatRoomMemberDao.findDmRoomByMember(userId) ?: chatRoomDao.findDmWithUser(userId)
+        val existingLocal = chatRoomMemberDao.findDmRoomByMember(userId)
         if (existingLocal != null) {
             Log.d(TAG, "Reusing existing local DM room: ${existingLocal.roomId}")
             return Result.success(existingLocal.roomId)
