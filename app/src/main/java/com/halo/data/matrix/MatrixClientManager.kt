@@ -194,10 +194,12 @@ class MatrixClientManager(
         username: String,
         password: String
     ): Result<SessionData> = withContext(ioDispatcher) {
-        // The Rust SDK handles standard password registration via the same
-        // interactive auth mechanism as login — delegate to login for now.
-        // TODO: Implement proper interactive registration via SDK when available.
-        login(homeserverUrl, username, password)
+        // Registration requires interactive auth which is not yet implemented
+        // in the Rust SDK integration. Return an explicit error rather than
+        // silently performing a login (which was the previous broken behavior).
+        Result.failure(UnsupportedOperationException(
+            "Registration is not yet supported. Please create an account via Element or another Matrix client, then log in here."
+        ))
     }
 
     /**
