@@ -66,17 +66,21 @@ fun StoryItem(
         HaloGradients.storyRingSeen
     }
 
-    // BUG-13 FIX: Rotating ring animation for unseen stories
-    val infiniteTransition = rememberInfiniteTransition(label = "storyRing")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ringRotation"
-    )
+    // UI-2 FIX: Only run animation when there are unseen stories
+    val rotation = if (storyGroup.hasUnseenStories) {
+        val infiniteTransition = rememberInfiniteTransition(label = "storyRing")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "ringRotation"
+        ).value
+    } else {
+        0f
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
