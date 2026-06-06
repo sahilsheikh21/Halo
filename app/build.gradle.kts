@@ -23,6 +23,11 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // ARCH-5: Export Room schemas to enable migration diffing
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
     }
 
     buildTypes {
