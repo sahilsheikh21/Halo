@@ -277,7 +277,7 @@ class MatrixClientManager(
         val mediaId = parts[1]
         
         val normalizedHomeserver = homeserverUrl.removeSuffix("/")
-        return "$normalizedHomeserver/_matrix/media/v3/download/$serverName/$mediaId"
+        return "$normalizedHomeserver/_matrix/client/v1/media/download/$serverName/$mediaId"
     }
 
     companion object {

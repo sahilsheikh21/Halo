@@ -83,9 +83,9 @@ class MediaManager @Inject constructor(
         val base = session.homeserverUrl.trimEnd('/')
 
         return if (width != null && height != null) {
-            "$base/_matrix/media/v3/thumbnail/$serverName/$mediaId?width=$width&height=$height&method=scale"
+            "$base/_matrix/client/v1/media/thumbnail/$serverName/$mediaId?width=$width&height=$height&method=scale"
         } else {
-            "$base/_matrix/media/v3/download/$serverName/$mediaId"
+            "$base/_matrix/client/v1/media/download/$serverName/$mediaId"
         }
     }
 }
