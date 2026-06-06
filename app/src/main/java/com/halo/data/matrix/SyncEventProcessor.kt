@@ -22,6 +22,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.matrix.rustcomponents.sdk.TaskHandle
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -128,7 +129,9 @@ class SyncEventProcessor @Inject constructor(
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun clearListeners() {
-        activeListeners.values.forEach { it.cancel() }
+        for (listener in activeListeners.values) {
+            listener.cancel()
+        }
         activeListeners.clear()
     }
 
@@ -296,7 +299,7 @@ class SyncEventProcessor @Inject constructor(
         val timestamp = event.timestamp.toLong().takeIf { it > 0L } ?: System.currentTimeMillis()
         // Use the SDK's stable event ID when available; fall back to a
         // deterministic composite key for local echoes / unsent items.
-        val eventKey = event.eventId
+        val eventKey = event.eventId()
             ?: buildDeterministicEventKey(roomId, senderId, timestamp)
         if (!markEventSeenPersisted(eventKey)) return
 
