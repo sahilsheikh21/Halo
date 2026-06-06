@@ -98,7 +98,7 @@ class ChatRepository @Inject constructor(
                 membersJoined = membersStr
             )
         }
-        chatRoomDao.insertChatRooms(entities)
+        chatRoomDao.insertChatRoomsIgnore(entities)
         entities.filter { it.isDm }.forEach { room ->
             upsertRoomMembers(room.roomId, room.membersJoined)
         }
