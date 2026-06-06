@@ -129,6 +129,12 @@ class ChatRepository @Inject constructor(
                         if (isSpace) {
                             continue
                         }
+                        // SEC-7: Only auto-accept DM invites to prevent spam rooms
+                        val isDmInvite = try { room.isDirect() } catch (_: Exception) { false }
+                        if (!isDmInvite) {
+                            Log.d(TAG, "Skipping non-DM invite for room ${room.id()}")
+                            continue
+                        }
                         val roomId = room.id()
                         Log.d(TAG, "Auto-accepting invite for room $roomId")
 
