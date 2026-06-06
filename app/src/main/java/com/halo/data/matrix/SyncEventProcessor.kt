@@ -66,12 +66,13 @@ class SyncEventProcessor @Inject constructor(
      * network reconnect). Without this guard those items would be re-inserted into
      * the DB on each restart, causing flicker and potential duplicates.
      *
-     * The set lives in-memory for the lifetime of the singleton; it is never
-     * persisted to disk (Room's OnConflictStrategy.REPLACE is the safety net for
-     * anything that slips through after a process kill).
+     * DATA-2 FIX: Bounded to MAX_SEEN_EVENTS entries to prevent unbounded memory growth.
      */
     private val seenEventIds: MutableSet<String> =
-        Collections.newSetFromMap(ConcurrentHashMap())
+        Collections.newSetFromMap(object : LinkedHashMap<String, Boolean>(MAX_SEEN_EVENTS, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean =
+                size > MAX_SEEN_EVENTS
+        })
     private var inviteReconcileJob: Job? = null
     private val attachInProgress = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     @Volatile private var started = false
@@ -103,6 +104,12 @@ class SyncEventProcessor @Inject constructor(
                             delay(LISTENER_RETRY_DELAY_MS)
                             attachTimelineListeners()
                             reconcileInvitesAndListeners()
+                        }
+
+                        // DATA-1: Prune processed events older than 7 days
+                        appScope.launch(ioDispatcher) {
+                            val sevenDaysAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+                            processedEventDao.pruneOlderThan(sevenDaysAgo)
                         }
                     }
                     is SyncState.Idle, is SyncState.Error -> {
@@ -323,6 +330,8 @@ class SyncEventProcessor @Inject constructor(
     }
 
     companion object {
+        private const val MAX_SEEN_EVENTS = 50_000
+
         internal fun buildDeterministicEventKey(
             roomId: String,
             senderId: String,
