@@ -1,0 +1,7 @@
+﻿Compiled from "matrix_sdk_ffi.kt"
+public abstract class org.matrix.rustcomponents.sdk.EventOrTransactionId {
+  public static final org.matrix.rustcomponents.sdk.EventOrTransactionId$Companion Companion;
+  private org.matrix.rustcomponents.sdk.EventOrTransactionId();
+  public org.matrix.rustcomponents.sdk.EventOrTransactionId(kotlin.jvm.internal.DefaultConstructorMarker);
+  static {};
+}
